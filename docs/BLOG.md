@@ -30,8 +30,9 @@ reach, before it happens.
    dev ECS service) enters ALARM.
 2. EventBridge puts the state change on an SQS queue. A Strands agent - the brain - consumes it.
    The brain is the one part that does not have to be trusted, so it can run anywhere: in Lambda
-   on Bedrock, or, as in our submission, on a laptop with a local model (Bedrock is not in the AWS
-   Free plan; the leash does not care).
+   on Bedrock, or, as in our submission, on an EC2 instance running a local model under a
+   least-privilege IAM role (Bedrock is not in the AWS Free plan; the leash does not care, and
+   nothing in the system holds an access key).
 3. The agent diagnoses with read-only tools, then calls a mutating tool: `clean_disk`,
    `restart_service` or `scale_group`.
 4. **Inside** every mutating tool, before anything touches AWS, the tool asks the authorizer - a

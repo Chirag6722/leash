@@ -11,6 +11,9 @@ Serves three HTTP API (payload format v2) routes behind API Gateway:
                            reply. Worker mode (REQUEST_QUEUE_URL set): queues the request and
                            returns 202 {"incident_id"}; the reply arrives via GET /reply.
     GET  /reply?incident_id=X -> {"reply": ...} once the worker has answered, else 202 pending
+    GET  /                  -> the dashboard page itself, over https (the S3 website endpoint is
+                               http-only and CloudFront needs an account verification), with the
+                               config inlined so it talks to this same API.
 
 Every response carries permissive CORS headers so the static dashboard on S3 can call it.
 Routing uses event["routeKey"] ("GET /audit"), which is how HTTP API v2 events identify the
@@ -100,6 +103,30 @@ def _read_body(event: dict):
 
 
 HEARTBEAT_STALE_S = 90
+
+
+_PAGE = {"html": "", "at": 0.0}
+
+
+def _dashboard(event: dict) -> dict:
+    """The dashboard HTML, fetched from the website bucket (cached ~60 s) with config.js replaced
+    by an inline config that points at this API's own https origin."""
+    import time
+    import urllib.request
+
+    origin = os.environ.get("DASHBOARD_BUCKET_URL", "").rstrip("/")
+    if not origin:
+        return _error(404, "no dashboard bucket configured")
+    if not _PAGE["html"] or time.time() - _PAGE["at"] > 60:
+        with urllib.request.urlopen(f"{origin}/index.html", timeout=10) as resp:
+            _PAGE["html"], _PAGE["at"] = resp.read().decode("utf-8"), time.time()
+    domain = ((event.get("requestContext") or {}).get("domainName") or "").strip()
+    api_url = f"https://{domain}" if domain else ""
+    config = json.dumps({"apiUrl": api_url, "devInstanceId": os.environ.get("DEV_INSTANCE_ID", ""),
+                         "prodInstanceId": os.environ.get("PROD_INSTANCE_ID", ""),
+                         "asgName": os.environ.get("ASG_NAME", "leash-dev-asg")})
+    html = _PAGE["html"].replace('<script src="config.js"></script>', f"<script>window.LEASH_CONFIG = {config};</script>")
+    return {"statusCode": 200, "headers": {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache"}, "body": html}
 
 
 def _health(event: dict) -> dict:
@@ -342,6 +369,8 @@ ROUTES = {
     "POST /policies/propose": _propose,
     "GET /policies/proposals": _proposals,
     "POST /policies/approve": _approve,
+    "GET /": _dashboard,
+    "GET /index.html": _dashboard,
     "GET /health": _health,
     "GET /audit": _audit,
     "GET /policies": _policies,

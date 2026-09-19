@@ -743,6 +743,11 @@ Resources:
           REDTEAM_FUNCTION_NAME: !If [UseBedrock, !Ref RedTeamFunction, !Ref "AWS::NoValue"]
           REQUEST_QUEUE_URL: !If [UseWorker, !Ref RequestQueue, !Ref "AWS::NoValue"]
           OPERATOR_TOKEN: !Ref OperatorToken
+          # GET / serves the dashboard over https from the bucket's http website endpoint.
+          DASHBOARD_BUCKET_URL: !GetAtt DashboardBucket.WebsiteURL
+          DEV_INSTANCE_ID: !Ref DevInstance
+          PROD_INSTANCE_ID: !Ref ProdInstance
+          ASG_NAME: !Sub "${AWS::StackName}-dev-asg"
           POLICY_STORE_ID: !If [UseAvp, !GetAtt Authz.Outputs.PolicyStoreId, !Ref "AWS::NoValue"]
           POLICY_ID_MAP: !If [UseAvp, !GetAtt Authz.Outputs.PolicyIdMap, !Ref "AWS::NoValue"]
           LEASH_AUTHZ_FUNCTION: !If [UseS3Policies, !Ref AuthzFunction, !Ref "AWS::NoValue"]
@@ -750,6 +755,18 @@ Resources:
           # function's only write, and the only code path that publishes a policy.
           LEASH_CEDAR_S3_BUCKET: !If [UseS3Policies, !Ref PolicyBucket, !Ref "AWS::NoValue"]
       Events:
+        Root:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref LeashApi
+            Path: /
+            Method: GET
+        Index:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref LeashApi
+            Path: /index.html
+            Method: GET
         Health:
           Type: HttpApi
           Properties:
@@ -1212,8 +1229,8 @@ Outputs:
     Description: Base URL of the HTTP API ($default stage).
     Value: !Sub "https://${LeashApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}"
   DashboardUrl:
-    Description: Public URL of the dashboard (https via CloudFront when DashboardHttps=true, else the bucket's website endpoint).
-    Value: !If [WantHttps, !Sub "https://${DashboardCdn.DomainName}", !GetAtt DashboardBucket.WebsiteURL]
+    Description: Public https URL of the dashboard, served by the API (or CloudFront when DashboardHttps=true).
+    Value: !If [WantHttps, !Sub "https://${DashboardCdn.DomainName}", !Sub "https://${LeashApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/"]
   DashboardBucketUrl:
     Description: The bucket's own http website endpoint (CloudFront's origin when enabled).
     Value: !GetAtt DashboardBucket.WebsiteURL
