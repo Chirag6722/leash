@@ -151,7 +151,7 @@ def _health(event: dict) -> dict:
                 continue
             age = int((now - seen).total_seconds())
             brains.append({"host": hb.get("host", ""), "model": hb.get("model", ""), "seen": hb["at"],
-                           "age_s": age, "online": age < HEARTBEAT_STALE_S})
+                           "age_s": age, "online": age < HEARTBEAT_STALE_S, "busy": hb.get("busy") == "true"})
         online = [b for b in brains if b["online"]]
         if brains:
             lead = online[0] if online else brains[0]

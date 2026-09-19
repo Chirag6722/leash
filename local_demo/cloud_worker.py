@@ -55,6 +55,29 @@ def configure(outputs: dict) -> None:
     os.environ.pop("LEASH_SANDBOX_UNLEASHED", None)
 
 
+def _start_heartbeat(every_s: int = 20) -> None:
+    """Heartbeat from a daemon thread, so a brain that is deep in a 20-attack run still shows as
+    online; the row says whether it is busy."""
+    import threading
+
+    from common import audit
+
+    name = os.environ.get("LEASH_WORKER_NAME") or os.environ.get("COMPUTERNAME") or os.uname().nodename
+    model = os.environ["OLLAMA_MODEL_ID"]
+    busy_file = os.environ.get("LEASH_BUSY_FILE")
+
+    def loop():
+        while True:
+            try:
+                busy = bool(busy_file and Path(busy_file).exists())
+                audit.write_heartbeat(model, name, busy=busy)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[heartbeat] failed: {exc}", flush=True)
+            time.sleep(every_s)
+
+    threading.Thread(target=loop, name="heartbeat", daemon=True).start()
+
+
 def _busy(flag: bool) -> None:
     """Marker file while a message is being handled (LEASH_BUSY_FILE, default none): the EC2
     brain's update timer checks it so a code refresh never kills an answer mid-flight."""
@@ -130,18 +153,9 @@ def main(argv: list[str]) -> int:
     print(f"Leash worker: brain on this machine ({os.environ['OLLAMA_MODEL_ID']}), leash in AWS "
           f"({outputs['AuthzFunctionName']}). Polling {len(queues)} queues. Ctrl+C to stop.", flush=True)
     idle_rounds = 0
-    last_beat = 0.0
+    _start_heartbeat()
     while True:
         got = False
-        if time.time() - last_beat > 20:
-            try:
-                from common import audit
-
-                audit.write_heartbeat(os.environ["OLLAMA_MODEL_ID"],
-                                      os.environ.get("LEASH_WORKER_NAME") or os.environ.get("COMPUTERNAME") or os.uname().nodename)
-                last_beat = time.time()
-            except Exception as exc:  # noqa: BLE001
-                print(f"[heartbeat] failed: {exc}", flush=True)
         for name, url, fn in queues:
             resp = sqs.receive_message(QueueUrl=url, MaxNumberOfMessages=1, WaitTimeSeconds=5,
                                        VisibilityTimeout=900)
