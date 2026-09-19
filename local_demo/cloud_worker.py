@@ -122,7 +122,8 @@ def main(argv: list[str]) -> int:
             try:
                 from common import audit
 
-                audit.write_heartbeat(os.environ["OLLAMA_MODEL_ID"], os.environ.get("COMPUTERNAME") or os.uname().nodename)
+                audit.write_heartbeat(os.environ["OLLAMA_MODEL_ID"],
+                                      os.environ.get("LEASH_WORKER_NAME") or os.environ.get("COMPUTERNAME") or os.uname().nodename)
                 last_beat = time.time()
             except Exception as exc:  # noqa: BLE001
                 print(f"[heartbeat] failed: {exc}", flush=True)
