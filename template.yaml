@@ -777,6 +777,34 @@ Resources:
             Action: s3:GetObject
             Resource: !Sub "${DashboardBucket.Arn}/*"
 
+  # https in front of the website bucket. The S3 website endpoint is http-only, so
+  # CloudFront talks to it over http and serves viewers over https. Caching is off:
+  # the page is one file that changes on every publish and the data comes from the API.
+  DashboardCdn:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "${AWS::StackName} dashboard (https front for the S3 website bucket)"
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        DefaultRootObject: index.html
+        Origins:
+          - Id: dashboard-website
+            DomainName: !Select [1, !Split ["http://", !GetAtt DashboardBucket.WebsiteURL]]
+            CustomOriginConfig:
+              OriginProtocolPolicy: http-only
+              HTTPPort: 80
+        DefaultCacheBehavior:
+          TargetOriginId: dashboard-website
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          Compress: true
+          # Managed policy "CachingDisabled": every request goes to the bucket.
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
   # -------------------------------------------------------------------------
   # Breakable infra (dev) and a prod decoy. Nothing here has inbound access;
   # the instances are reached through SSM only.
@@ -1056,7 +1084,10 @@ Outputs:
     Description: Base URL of the HTTP API ($default stage).
     Value: !Sub "https://${LeashApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}"
   DashboardUrl:
-    Description: Public static website URL of the dashboard.
+    Description: Public https URL of the dashboard (CloudFront in front of the website bucket).
+    Value: !Sub "https://${DashboardCdn.DomainName}"
+  DashboardBucketUrl:
+    Description: The bucket's own http website endpoint (CloudFront's origin).
     Value: !GetAtt DashboardBucket.WebsiteURL
   DashboardBucket:
     Value: !Ref DashboardBucket
