@@ -293,7 +293,9 @@ the same code.
 
 *The poisoned-tag beat as the dashboard shows it: under one `leash-disk-dev` incident, the model was talked into trying `terminateInstance` (red, `ForbidDestructive`) and then cleaned the disk anyway (green, `PermitDevRemediation`). The four policies on the right are read live from the policy store; clicking a policy id in the trail jumps to the rule that decided it.*
 
-The `DashboardUrl` output is a static page that talks only to the HTTP API:
+The `DashboardUrl` output is the API's own https root: the API Lambda serves the page (from the
+website bucket, config inlined) so the link is https without CloudFront, which a fresh account
+cannot create. The page talks only to the HTTP API:
 
 - **The red team panel**: attacks, model persuaded %, executed without the leash, executed
   with Leash, a per-tactic breakdown and the live attack feed. Press "Run 20 attacks" to add
