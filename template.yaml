@@ -62,6 +62,14 @@ Parameters:
       Secret (16+ characters) the dashboard operator sends as the x-leash-token header to
       publish an approved policy or launch a red-team run. Mandatory: the dashboard URL is
       public. Read-only routes and /ask never need it.
+  DashboardHttps:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: >-
+      Put a CloudFront distribution in front of the dashboard bucket so the link is https.
+      Off by default: CloudFront needs an account that AWS Support has verified for it, which
+      a fresh Free-plan account is not.
   LatestAmiId:
     # SSM public parameter, always resolves to the newest AL2023 x86_64 AMI in the region.
     # https://docs.aws.amazon.com/linux/al2023/ug/ec2.html#launch-from-cloudformation
@@ -75,6 +83,7 @@ Conditions:
   UseWorker: !Equals [!Ref Brain, worker]
   UseAvp: !Equals [!Ref PolicyStore, avp]
   UseS3Policies: !Equals [!Ref PolicyStore, s3]
+  WantHttps: !Equals [!Ref DashboardHttps, "true"]
 
 Globals:
   Function:
@@ -782,6 +791,7 @@ Resources:
   # the page is one file that changes on every publish and the data comes from the API.
   DashboardCdn:
     Type: AWS::CloudFront::Distribution
+    Condition: WantHttps
     Properties:
       DistributionConfig:
         Enabled: true
@@ -1084,10 +1094,10 @@ Outputs:
     Description: Base URL of the HTTP API ($default stage).
     Value: !Sub "https://${LeashApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}"
   DashboardUrl:
-    Description: Public https URL of the dashboard (CloudFront in front of the website bucket).
-    Value: !Sub "https://${DashboardCdn.DomainName}"
+    Description: Public URL of the dashboard (https via CloudFront when DashboardHttps=true, else the bucket's website endpoint).
+    Value: !If [WantHttps, !Sub "https://${DashboardCdn.DomainName}", !GetAtt DashboardBucket.WebsiteURL]
   DashboardBucketUrl:
-    Description: The bucket's own http website endpoint (CloudFront's origin).
+    Description: The bucket's own http website endpoint (CloudFront's origin when enabled).
     Value: !GetAtt DashboardBucket.WebsiteURL
   DashboardBucket:
     Value: !Ref DashboardBucket
