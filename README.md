@@ -25,9 +25,10 @@ touch**. It can restart, scale and clean up; it can never delete, never touch an
 denied, is written to an audit trail *before* the agent is told the answer.
 
 **Bring your own brain.** The model is the one part of the system that does not need to be
-trusted, so it can run anywhere: in Lambda on Amazon Bedrock, or on a laptop with a local model,
-connected to the stack by SQS. The leash — the Cedar policies and the audit — always runs in AWS.
-The default deployment is the second shape, because it fits the AWS Free plan.
+trusted, so it can run anywhere: in Lambda on Amazon Bedrock, on an EC2 instance with a local
+model, or on a laptop, connected to the stack by SQS. The leash — the Cedar policies and the
+audit — always runs in AWS. The deployed shape is an EC2 brain under a scoped instance role,
+because it fits the AWS Free plan and leaves no access keys anywhere.
 
 ## Architecture
 
@@ -158,7 +159,15 @@ later update can try to replace the EC2 instances. Pin it first (an SSM paramete
 the instances already run) and pass `LatestAmiId=/leash/pinned-ami`; review the change set's
 Replacement column before executing.
 
-With `Brain=worker` (the default) the brain is a plain process that runs anywhere. `BrainOnEc2=true` launches it on an EC2 instance under the stack's least-privilege instance role (Ollama + the worker as a systemd service, no access keys anywhere); on the AWS Free plan that is not available, because EC2 there is limited to free-tier-eligible micro instances with 1 GB of RAM, which cannot run a model, so this submission runs the brain on a laptop with the `WorkerPolicyArn` policy and a local model. Everything it touches is real; only the model is local:
+With `Brain=worker` (the default) the brain is a plain process that runs anywhere. The deployed
+stack runs it **on an EC2 instance** (`BrainOnEc2=true`): UserData installs Ollama, pulls the
+model, clones this repo and runs the worker as a systemd service under the stack's
+least-privilege instance role, so there are **no access keys anywhere** in the system; a cron
+job pulls `main` every ten minutes. The Free plan only launches free-tier-eligible types, and
+`m7i-flex.large` (2 vCPU, 8 GB, plus a swap file) is one of them and holds the 8B model. The
+dashboard header names the brain that is answering. For development the same worker runs on a
+laptop with the `WorkerPolicyArn` policy and a local model; both can run at once, they share the
+queues:
 
 ```bash
 ollama pull qwen3:8b && ollama serve                  # or any tool-capable model
