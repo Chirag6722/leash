@@ -422,6 +422,7 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           set -euxo pipefail
+          export HOME=/root   # cloud-init runs without it and ollama panics on an unset HOME
           # 8 GB of RAM is enough for an 8B Q4 model only with headroom: 6 GB of swap on gp3.
           fallocate -l 6G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
           echo "/swapfile none swap sw 0 0" >> /etc/fstab
@@ -440,6 +441,7 @@ Resources:
           Wants=network-online.target
           [Service]
           WorkingDirectory=/opt/leash
+          Environment=HOME=/root
           Environment=PYTHONPATH=/opt/leash/src
           Environment=AWS_REGION=${AWS::Region}
           Environment=STACK_NAME=${AWS::StackName}
