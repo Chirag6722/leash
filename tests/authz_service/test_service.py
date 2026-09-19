@@ -128,13 +128,32 @@ def test_s3_policies_evaluate_and_hot_reload(monkeypatch):
     authz.authorize("cleanDisk", "Instance", "i-1", "prod")
     assert fake.gets == first_gets  # unchanged ETags: no re-download
 
-    # Edit ForbidProd in the bucket: prod is now allowed for cleanDisk. Next decision sees it.
+    # Edit the cap in the bucket (what scripts/set-cap.sh does): the next decision sees it.
+    assert authz.authorize("scaleGroup", "AutoScalingGroup", "g", "dev", {"desiredCapacity": 3}).allowed is True
+    fake.files["cedar/policies/ForbidScaleAboveCap.cedar"] = (
+        'forbid (principal, action == Leash::Action::"scaleGroup", resource) when { context.desiredCapacity > 2 };'
+    )
+    d2 = authz.authorize("scaleGroup", "AutoScalingGroup", "g", "dev", {"desiredCapacity": 3})
+    assert d2.allowed is False and d2.policy_ids == ["ForbidScaleAboveCap"] and fake.gets > first_gets
+    assert authz.policy_version().startswith("s3:")
+
+    # Edit the bucket so prod is allowed for cleanDisk: that breaks the floor, so the set is never
+    # loaded. Every request fails closed with the invariant's name, a dev clean included.
     fake.files["cedar/policies/ForbidProd.cedar"] = 'forbid (principal, action, resource) when { resource.env == "nope" };'
     fake.files["cedar/policies/PermitDevRemediation.cedar"] = (
         'permit (principal == Leash::Agent::"leash", action == Leash::Action::"cleanDisk", resource) '
         'when { resource.env == "prod" || resource.env == "dev" };'
     )
-    d2 = authz.authorize("cleanDisk", "Instance", "i-1", "prod")
-    assert d2.allowed is True and fake.gets > first_gets
-    assert authz.policy_version().startswith("s3:")
+    gets_before = fake.gets
+    d3 = authz.authorize("cleanDisk", "Instance", "i-1", "prod")
+    assert d3.allowed is False and d3.policy_ids == ["Floor:NeverCleanProd"]
+    assert "until the store is fixed" in d3.reason
+    assert authz.authorize("cleanDisk", "Instance", "i-1", "dev").allowed is False  # fail closed for everything
+    assert fake.gets == gets_before + 5  # the rejection is cached per version: no re-download per decision
+    assert svc.handler({"op": "floor"}, None)["holds"] is False
+
+    # Put the store right again and the leash is back, no restart.
+    fake.files["cedar/policies/ForbidProd.cedar"] = 'forbid (principal, action, resource) when { resource.env == "prod" };'
+    assert authz.authorize("cleanDisk", "Instance", "i-1", "dev").allowed is True
+    assert svc.handler({"op": "floor"}, None)["holds"] is True
     authz.reset_cache()

@@ -25,7 +25,7 @@ import os
 import re
 from dataclasses import asdict, dataclass, field
 
-from common import audit, authz
+from common import audit, authz, floor
 
 PARTITION = "PROPOSAL"
 MAX_TEXT = 500
@@ -173,28 +173,19 @@ def validate(statement: str, schema: dict) -> Validation:
     return Validation(bool(res.validation_passed), [str(e) for e in res.errors])
 
 
-def _decide(policies_text: str, schema: dict, action, rtype, rid, env, context) -> tuple[bool, list]:
-    import cedarpy
-
-    entity_type = f"{authz.NAMESPACE}::{rtype}"
-    request = {"principal": {"type": f"{authz.NAMESPACE}::Agent", "id": authz.PRINCIPAL_ID},
-               "action": {"type": f"{authz.NAMESPACE}::Action", "id": action},
-               "resource": {"type": entity_type, "id": rid}, "context": dict(context)}
-    entities = [{"uid": {"type": f"{authz.NAMESPACE}::Agent", "id": authz.PRINCIPAL_ID}, "attrs": {}, "parents": []},
-                {"uid": {"type": entity_type, "id": rid}, "attrs": {"env": env}, "parents": []}]
-    res = cedarpy.is_authorized(request, policies_text, entities, schema)
-    names = res.diagnostics.id_annotations_by_reason
-    return bool(res.allowed), [names.get(r, r) for r in res.diagnostics.reasons]
+_decide = authz.evaluate_text
 
 
 def prove(name: str, statement: str, files: dict) -> dict:
-    """Every proof case before and after the candidate; `changed` lists the flips."""
+    """Every proof case before and after the candidate; `changed` lists the flips and `breaks`
+    the floor invariants the resulting policy set would violate (an approval refuses those)."""
     schema = json.loads(files["schema"])
     current = {n: files[n] for n in authz.policy_names(files)}
     after = dict(current)
     after[name] = statement  # replaces a same-named policy, otherwise adds
     before_text = "\n".join(f'@id("{n}")\n{t}' for n, t in current.items())
     after_text = "\n".join(f'@id("{n}")\n{t}' for n, t in after.items())
+    breaks = floor.describe(floor.check(after_text, schema, _decide))
     rows, changed = [], []
     for label, action, rtype, rid, env, ctx in PROOF_CASES:
         b_ok, b_ids = _decide(before_text, schema, action, rtype, rid, env, ctx)
@@ -204,7 +195,7 @@ def prove(name: str, statement: str, files: dict) -> dict:
         rows.append(row)
         if b_ok != a_ok:
             changed.append(f"{label}: {row['before']} -> {row['after']}")
-    return {"cases": rows, "changed": changed, "replaces": name in current}
+    return {"cases": rows, "changed": changed, "replaces": name in current, "breaks": breaks}
 
 
 # --- the two entry points --------------------------------------------------------------------
@@ -244,13 +235,13 @@ def propose(text: str, drafter=None) -> dict:
         draft = Draft("Proposed", "", "none", "no template fits this sentence and no model was available")
 
     validation = validate(draft.statement, schema) if draft.statement else Validation(False, ["empty draft"])
-    proof = prove(draft.name, draft.statement, files) if validation.ok else {"cases": [], "changed": [], "replaces": False}
+    proof = prove(draft.name, draft.statement, files) if validation.ok else {"cases": [], "changed": [], "replaces": False, "breaks": []}
 
     pk = "proposal-" + audit.timestamp().replace("-", "").replace(":", "").replace(".", "")[:21]
     row = audit.write_generic(pk, PARTITION, {
         "text": text, "name": draft.name, "statement": draft.statement, "source": draft.source, "note": draft.note,
         "valid": "true" if validation.ok else "false", "errors": validation.errors,
-        "changed": proof["changed"], "replaces": "true" if proof["replaces"] else "false",
+        "changed": proof["changed"], "replaces": "true" if proof["replaces"] else "false", "breaks": proof["breaks"],
         "cases": json.dumps(proof["cases"]), "status": "proposed", "policy_version_at_draft": version,
     })
     row["cases"] = proof["cases"]
@@ -283,8 +274,13 @@ def approve(proposal_id: str) -> dict:
     # proved (another approval, a set-cap.sh, a hand edit), prove it again against what is in
     # force now and refuse when the outcome differs - a stale proof is not consent.
     files, current_version = authz._policy_files()
+    fresh = prove(name, statement, files)
+    # The floor is proved again here, against the set in force, whatever the card said and
+    # whoever holds the token: a policy set that would permit a request the floor forbids is
+    # never written to the store.
+    if fresh["breaks"]:
+        raise ValueError("refused: publishing this would break the floor (" + "; ".join(fresh["breaks"]) + ")")
     if p.get("policy_version_at_draft") and current_version != p.get("policy_version_at_draft"):
-        fresh = prove(name, statement, files)
         if fresh["changed"] != list(p.get("changed") or []):
             raise ValueError(
                 "the policies changed since this draft was proved and its effect is now different "

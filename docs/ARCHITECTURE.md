@@ -71,8 +71,11 @@ arm's tool calls are discarded, because "allowed by nothing" is not a decision.
 | **IAM (Lambda execution role)** | *Capability*: which AWS APIs the process can call at all. Explicit `Deny` on `ec2:TerminateInstances`, `ec2:DeleteVolume`, `ecs:DeleteService`, `ecs:DeleteCluster`, `autoscaling:DeleteAutoScalingGroup`, `dynamodb:DeleteTable`, `s3:DeleteBucket`, `rds:Delete*`; `ssm:SendCommand` only on instances with tag `env=dev`; `ecs:UpdateService` and `autoscaling:SetDesiredCapacity` only on the dev resources. | If a Cedar policy is mis-written, or someone bypasses `authorize()` in code, the destructive API still fails. IAM cannot express the scale cap or return a policy id, which is why it is the floor and not the leash. |
 | **Code guard** | `terminate_instance` never calls `ec2.terminate_instances` even if authorisation somehow returned ALLOW. | Belt and braces for the one action that is irreversible. |
 
-The three layers fail independently. A demo can show layer 1 (Cedar denial with policy id); layers
-2 and 3 are there so that a wrong demo never becomes a wrong outage.
+| **The floor** (`common/floor.py`) | *The policy set itself*: ten requests that must be DENY under every version (terminate, delete, anything on prod, scale to 10, untagged). Proved when a draft is proposed, again when it is approved, and by the authorizer before any new policy version is loaded. | The policies move (English rules, `set-cap.sh`), so something outside the store has to say how far. A set that breaks an invariant is never loaded: every request fails closed with `Floor:<name>` in the row until the store is fixed. Changing the floor is a code change and a deploy, not a click. |
+
+The four layers fail independently. A demo can show layer 1 (Cedar denial with policy id) and
+the floor (propose "allow terminate on dev" and watch the card refuse); layers 2 and 3 are there
+so that a wrong demo never becomes a wrong outage.
 
 Cedar semantics that matter: the evaluator is deny-by-default (no matching `permit` -> DENY), and
 any matching `forbid` overrides every `permit`. `ForbidProd` and `ForbidDestructive` therefore win

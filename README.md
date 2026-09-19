@@ -21,7 +21,12 @@ Track: **Ship It**.
 - **Runs entirely on the AWS Free plan.** The model runs on an EC2 instance under a scoped IAM role;
   there are no access keys anywhere in the system. Bedrock and Verified Permissions are one
   parameter away on an account that has them.
-- **Twelve AWS services + two AWS open-source projects** (Strands Agents, Cedar); 160 tests with real
+- **The leash has a floor.** Ten invariants ship in code, not in the policy store: nothing is ever
+  terminated or deleted, nothing touches prod, no scale cap of 10, nothing without an env tag. Every
+  proposal, every approval and every hot-reload is proved against them. A policy set that would
+  break one is never loaded: the agent switches off, it does not loosen. Not even the operator token
+  can publish past it.
+- **Twelve AWS services + two AWS open-source projects** (Strands Agents, Cedar); 167 tests with real
   Cedar evaluation; CI on every push.
 
 ## The problem
@@ -142,8 +147,31 @@ forbid (
 Cedar is deny-by-default and `forbid` always wins over `permit`, so the model cannot argue its way
 past a policy: the worst it can do is ask, be denied, and have the denial recorded. Underneath, the
 agent's IAM role (Bedrock mode) also has an explicit `Deny` on every delete/terminate API and can
-only send SSM commands to `env=dev` instances. Cedar is the leash; IAM is the floor. See
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+only send SSM commands to `env=dev` instances. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+### The floor under the leash
+
+The policies are meant to move: an operator approves an English rule and the next decision uses
+it; `scripts/set-cap.sh` edits the bucket directly. So what stops a bad rule? Ten **invariants**
+in [`src/common/floor.py`](src/common/floor.py), each one concrete request that must be DENY under
+every policy version:
+
+| Invariant | The request that must stay DENY |
+| --- | --- |
+| NeverTerminateDev, NeverTerminateProd | `terminateInstance` on a dev / prod instance |
+| NeverDeleteInstance, NeverDeleteService, NeverDeleteGroup | `deleteResource` on each resource type |
+| NeverCleanProd, NeverRestartProd, NeverScaleProd | anything on `env=prod`, even scaling to 1 |
+| NeverScaleToTen | `scaleGroup` to 10 on dev: no policy may raise the cap that far |
+| NeverTouchUntagged | `cleanDisk` on a resource with no `env` tag |
+
+They are proved at three points. **Propose:** the card says which invariant a draft would break
+(`BREAKS THE FLOOR`, no Approve button). **Approve:** the server proves it again against the set
+in force and refuses, whoever holds the operator token. **Load:** the authorizer proves every new
+policy version before it enforces it; a set that breaks an invariant is never loaded, every
+request is denied with `Floor:<invariant>` in the audit row, and the dashboard's floor panel
+turns red, until the store is fixed. A `permit (principal, action, resource);` dropped straight
+into the bucket therefore switches the agent off; it opens nothing. Moving the floor itself is
+a code change, a review and a deploy, which is the point.
 
 ## Deploy
 
@@ -321,12 +349,16 @@ cannot create. The page talks only to the HTTP API:
   sleep.
 - **The audit trail**, grouped by incident, newest first, every ALLOW green and every DENY red
   with the policy ids that decided it.
-- **The leash**: the four Cedar policies, read live from the Verified Permissions policy store
-  through `GET /policies`, so what is displayed is exactly what is enforced. Click a policy id in
-  any audit row to jump to the rule.
+- **The leash**: the Cedar policies, read live from the policy store through `GET /policies`, so
+  what is displayed is exactly what is enforced. Click a policy id in any audit row to jump to the
+  rule. The header shows how long the authorizer's Cedar evaluation takes (median, measured per
+  decision). Under the policies, **the floor**: the ten invariants, each proved against the set
+  in force, green when all hold and red with "AGENT OFF" when the store holds a set that breaks
+  one.
 - **Ask the agent**: a chat box wired to `POST /ask` for the denial beats.
 - **Propose a rule**: English in, Cedar out. The draft is validated against the schema, proved
-  against a fixed set of requests (every answer that would flip is listed), and published to the
+  against a fixed set of requests (every answer that would flip is listed) and against the floor
+  (a draft that would break an invariant cannot be approved at all), and published to the
   versioned policy bucket only when a person clicks Approve.
 
 Two actions change what the system does, publishing a policy and launching a red-team run, and
@@ -384,7 +416,9 @@ The timed shot list for the video is in [docs/DEMO-SCRIPT.md](docs/DEMO-SCRIPT.m
 | Attacks that execute a destructive action | 18 of 20 with the same model and the leash off (measured, sandboxed) | **0 of 20**, measured on the live stack, every attempt audited with the policy that stopped it |
 | Blast radius of the bot | whatever its keys allow | cleanDisk, restartService, scaleGroup up to 4, on `env=dev` only; nothing else, ever |
 | Finding out what it did | CloudTrail archaeology | one table, one row per decision, policy id included |
-| Changing what it may do | edit a prompt and hope | edit a five-line Cedar policy the model never sees |
+| Changing what it may do | edit a prompt and hope | write the rule in English, read the proof, click Approve; the model never sees it |
+| Loosening it past the floor | one prompt edit | impossible from the page, the token, or the bucket: 10 invariants proved on every load; a set that breaks one is never enforced |
+| The leash's own latency | — | the authorizer times every Cedar evaluation and stores it in the row; the dashboard shows the median ("decides in n ms") |
 
 ## What we learned
 

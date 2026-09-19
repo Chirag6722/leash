@@ -237,14 +237,59 @@ def policy_names(files: dict) -> list[str]:
     return [n for n in POLICY_NAMES if n in files] + extra
 
 
+def policy_text(files: dict) -> str:
+    """The whole policy set as one Cedar text, each policy carrying its @id."""
+    return "\n".join(f'@id("{name}")\n{files[name]}' for name in policy_names(files))
+
+
+def evaluate_text(policies_text: str, schema: dict, action, rtype, rid, env, context) -> tuple[bool, list]:
+    """One Cedar decision against an arbitrary policy text: (allowed, policy ids that decided).
+    The engine behind the proofs (proposals) and the floor; the live path is _authorize_local."""
+    import cedarpy
+
+    entity_type = f"{NAMESPACE}::{rtype}"
+    request = {"principal": {"type": f"{NAMESPACE}::Agent", "id": PRINCIPAL_ID},
+               "action": {"type": f"{NAMESPACE}::Action", "id": action},
+               "resource": {"type": entity_type, "id": rid}, "context": dict(context or {})}
+    entities = [{"uid": {"type": f"{NAMESPACE}::Agent", "id": PRINCIPAL_ID}, "attrs": {}, "parents": []},
+                {"uid": {"type": entity_type, "id": rid}, "attrs": {"env": env}, "parents": []}]
+    res = cedarpy.is_authorized(request, policies_text, entities, schema)
+    names = res.diagnostics.id_annotations_by_reason
+    return bool(res.allowed), [names.get(r, r) for r in res.diagnostics.reasons]
+
+
 def _load_local() -> dict:
     """Cedarpy inputs (policies with an @id each so diagnostics name them, and the schema),
-    rebuilt whenever the policy set version changes."""
+    rebuilt whenever the policy set version changes.
+
+    A new version is proved against the floor before it is used. A set that would permit a
+    request the floor forbids is not loaded: the rejection is cached for that version and every
+    decision fails closed (FloorBroken) until the store changes again."""
+    from common import floor
+
     files, version = _policy_files()
     if _LOCAL.get("version") != version:
-        parts = [f'@id("{name}")\n{files[name]}' for name in policy_names(files)]
-        _LOCAL.update(version=version, policies="\n".join(parts), schema=json.loads(files["schema"]))
+        text, schema = policy_text(files), json.loads(files["schema"])
+        failures = floor.broken(floor.check(text, schema, evaluate_text))
+        _LOCAL.clear()
+        _LOCAL.update(version=version, policies=text, schema=schema, rejected=failures)
+    if _LOCAL.get("rejected"):
+        raise floor.FloorBroken(_LOCAL["rejected"], version)
     return _LOCAL
+
+
+def floor_report() -> dict:
+    """Every invariant against the policy set in force: {"invariants": [...], "holds": bool,
+    "policy_version": str}. In lambda mode the authorizer answers, so the report is about the set
+    it actually enforces."""
+    from common import floor
+
+    if os.environ.get("LEASH_AUTHZ_FUNCTION"):
+        return _invoke_authz({"op": "floor"})
+    files, version = _policy_files()
+    rows = floor.check(policy_text(files), json.loads(files["schema"]), evaluate_text)
+    return {"invariants": rows, "holds": not floor.broken(rows), "policy_version": version,
+            "count": len(rows)}
 
 
 def _authorize_local(action, resource_type, resource_id, resource_env, context) -> Decision:
@@ -252,7 +297,17 @@ def _authorize_local(action, resource_type, resource_id, resource_env, context) 
     # diagnostics.reasons are parser ids ("policy0"), id_annotations_by_reason maps them to @id.
     import cedarpy
 
-    local = _load_local()
+    from common import floor
+
+    try:
+        local = _load_local()
+    except floor.FloorBroken as exc:
+        # Fail closed, loudly: the row names the invariant, the reason says what to fix.
+        ids = [f"Floor:{f['name']}" for f in exc.failures]
+        return Decision(allowed=False, policy_ids=ids,
+                        reason="policy set rejected: it would permit " + "; ".join(f["case"] for f in exc.failures)
+                        + ". Every request is denied until the store is fixed.",
+                        errors=floor.describe(exc.failures))
     entity_type = f"{NAMESPACE}::{resource_type}"
     request = {
         "principal": {"type": f"{NAMESPACE}::Agent", "id": PRINCIPAL_ID},

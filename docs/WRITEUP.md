@@ -69,7 +69,8 @@ The dashboard computes these from the audit trail itself, not from a slide:
 | Time from alarm to fix for a full dev disk | until a human wakes up and runs one command: typically 30 min to several hours | 5 min 48 s measured on the deployed stack with an 8B model on a laptop CPU (Bedrock is not in the Free plan); the leash decisions inside that took under a second each. With `Brain=bedrock` the same run is under 90 s. Shown live as **Alarm → fixed** on the dashboard |
 | Who can destroy something at 3 AM | anyone with the admin keys the bot would need | nobody: terminate and delete are forbidden by policy, by IAM, and by code |
 | How you find out what the bot did | grep CloudTrail | one table: every ALLOW and DENY with the policy id that decided it |
-| How you change what the bot may do | edit a prompt and hope | edit a five-line Cedar policy; the model never sees it |
+| How you change what the bot may do | edit a prompt and hope | write the rule in English; Cedar validates the draft, a proof lists every answer that flips, a person approves |
+| Loosening it past the floor | one prompt edit | impossible from the page, the token or the bucket: ten invariants (never terminate, never delete, nothing on prod, no cap of 10, nothing untagged) are proved on every proposal, approval and policy load. A set that breaks one is never enforced: the agent switches off, it does not loosen |
 | Cost at rest | — | two `t3.micro` (one stopped) and a quarter Fargate vCPU; everything else is pay-per-use |
 
 ## What we learned
