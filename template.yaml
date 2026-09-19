@@ -446,7 +446,7 @@ Resources:
           Environment=AWS_REGION=${AWS::Region}
           Environment=STACK_NAME=${AWS::StackName}
           Environment=OLLAMA_MODEL_ID=${BrainModel}
-          Environment=LEASH_WORKER_NAME=leash-brain (EC2 ${BrainInstanceType})
+          Environment="LEASH_WORKER_NAME=leash-brain (EC2 ${BrainInstanceType})"
           ExecStart=/usr/bin/python3.11 local_demo/cloud_worker.py
           Restart=always
           RestartSec=5
