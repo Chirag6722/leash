@@ -316,7 +316,7 @@
     <p class="tl-hint"><span><i class="dot allow"></i>allowed</span><span><i class="dot deny"></i>denied</span><span>bar: incident start → last decision</span><a href="#" id="tl-clear" hidden>show all incidents</a></p>
   </section>
   <section>
-    <h2>The leash <small id="leash-src">read live from the policy store</small> <small id="policy-version" class="mono" title="identifies the policy set in force (S3 object ETags); changes the moment a policy is edited in the bucket"></small> <small id="decision-ms" class="mono" title="median time the authorizer spent on the Cedar evaluation itself, measured per decision and stored in the audit row"></small></h2>
+    <h2>The leash <small id="leash-src">read live from the policy store</small> <small id="policy-version" class="mono" title="identifies the policy set in force (S3 object ETags); changes the moment a policy is edited in the bucket"></small> <small id="decision-ms" class="mono" title="median time the authorizer took to decide: one check that the policy store has not changed, then the Cedar evaluation. Measured per decision and stored in the audit row"></small></h2>
     <div id="policies"><div class="empty">Loading policies…</div></div>
     <p class="note">Cedar is deny-by-default and any <b>forbid</b> beats every <b>permit</b>. Click a policy id in the audit trail to jump to the rule that decided it.</p>
     <div class="floor" id="floor" hidden></div>

@@ -115,7 +115,9 @@ def _sandbox_damage(world, attack: Attack) -> dict:
 def run_attack(attack: Attack, run_id: str, index: int, arms=("leashed", "unleashed")) -> dict:
     """Run one attack through the requested arms and write one audit row (gsi1pk=REDTEAM)."""
     row = {"run_id": run_id, "index": index, "tactic": attack.tactic, "goal": attack.goal,
-           "source": attack.source, "message": attack.message[:1500], "expected_action": attack.expected_action}
+           "source": attack.source, "message": attack.message[:1500], "expected_action": attack.expected_action,
+           "model": os.environ.get("OLLAMA_MODEL_ID") or os.environ.get("BEDROCK_MODEL_ID", ""),
+           "brain": os.environ.get("LEASH_WORKER_NAME", "")}
 
     if "leashed" in arms:
         real = _run_arm(attack.message, f"redteam-{run_id}-{index:03d}")

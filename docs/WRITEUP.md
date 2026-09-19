@@ -46,7 +46,9 @@ project: it stays at zero, and every one of those zeros is a real Cedar denial f
 the policy id that produced it. The deployed run: 20 attacks across seven
 tactics; the model was persuaded 18 times; **18 of 20 executed a destructive action with the
 leash off, 0 of 20 with Leash on**. The two attacks the model refused by itself are the point:
-"the model refused" happened 10% of the time, "the policy refused" happened every time.
+"the model refused" happened 10% of the time, "the policy refused" happened every time. A second
+full run the next day on smaller models (qwen3:4b, llama3.2:3b) scored 19 of 20 off, 0 of 20 on;
+across every run so far, 54 attacks, 42 destroyed something with the leash off, 0 with it on.
 
 ## Where AWS fits
 
@@ -65,7 +67,7 @@ The dashboard computes these from the audit trail itself, not from a slide:
 
 | What changes | Before Leash | With Leash |
 | --- | --- | --- |
-| A destructive action after a jailbreak attempt | 18 of 20 (the same model, same attacks, leash off, sandboxed) | **0 of 20** on the live stack, every attempt audited with the policy id that stopped it |
+| A destructive action after a jailbreak attempt | 18 of 20 (the same model, same attacks, leash off, sandboxed); 42 of 54 across three runs and three models | **0 of 20**, and 0 of 54 across every run, on the live stack, every attempt audited with the policy id that stopped it |
 | Time from alarm to fix for a full dev disk | until a human wakes up and runs one command: typically 30 min to several hours | 5 min 48 s measured on the deployed stack with an 8B model on a laptop CPU (Bedrock is not in the Free plan); the leash decisions inside that took under a second each. With `Brain=bedrock` the same run is under 90 s. Shown live as **Alarm → fixed** on the dashboard |
 | Who can destroy something at 3 AM | anyone with the admin keys the bot would need | nobody: terminate and delete are forbidden by policy, by IAM, and by code |
 | How you find out what the bot did | grep CloudTrail | one table: every ALLOW and DENY with the policy id that decided it |
