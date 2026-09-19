@@ -101,17 +101,28 @@ def get_reply(incident_id: str) -> dict | None:
 
 
 def write_heartbeat(model: str, host: str) -> dict:
-    """The worker's liveness row, rewritten every few seconds while it polls."""
-    item = {"pk": HEARTBEAT_KEY[0], "sk": HEARTBEAT_KEY[1], "gsi1pk": "HEARTBEAT", "at": timestamp(),
+    """One liveness row per brain (sk = its name), rewritten every few seconds while it polls, so
+    several brains (an EC2 instance and a laptop, say) can share the queues and all be seen."""
+    item = {"pk": HEARTBEAT_KEY[0], "sk": host or HEARTBEAT_KEY[1], "gsi1pk": "HEARTBEAT", "at": timestamp(),
             "model": model, "host": host}
     _client().put_item(TableName=_table(), Item=_serialize(item))
     return item
 
 
+def read_heartbeats() -> list[dict]:
+    """Every brain that has ever written a heartbeat, newest first; the caller judges freshness."""
+    resp = _client().query(
+        TableName=_table(),
+        KeyConditionExpression="pk = :hb",
+        ExpressionAttributeValues={":hb": {"S": HEARTBEAT_KEY[0]}},
+    )
+    rows = [_deserialize(it) for it in resp.get("Items", [])]
+    return sorted(rows, key=lambda r: r.get("at", ""), reverse=True)
+
+
 def read_heartbeat() -> dict | None:
-    resp = _client().get_item(TableName=_table(), Key={"pk": {"S": HEARTBEAT_KEY[0]}, "sk": {"S": HEARTBEAT_KEY[1]}})
-    item = resp.get("Item")
-    return _deserialize(item) if item else None
+    rows = read_heartbeats()
+    return rows[0] if rows else None
 
 
 def _list_partition(gsi1pk: str, limit: int) -> list[dict]:
