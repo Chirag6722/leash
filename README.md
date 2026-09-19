@@ -158,8 +158,7 @@ later update can try to replace the EC2 instances. Pin it first (an SSM paramete
 the instances already run) and pass `LatestAmiId=/leash/pinned-ami`; review the change set's
 Replacement column before executing.
 
-With `Brain=worker` (the default), start the brain on any machine with AWS credentials and a
-model. Everything it touches is real; only the model is local:
+With `Brain=worker` (the default) the brain is a plain process that runs anywhere. `BrainOnEc2=true` launches it on an EC2 instance under the stack's least-privilege instance role (Ollama + the worker as a systemd service, no access keys anywhere); on the AWS Free plan that is not available, because EC2 there is limited to free-tier-eligible micro instances with 1 GB of RAM, which cannot run a model, so this submission runs the brain on a laptop with the `WorkerPolicyArn` policy and a local model. Everything it touches is real; only the model is local:
 
 ```bash
 ollama pull qwen3:8b && ollama serve                  # or any tool-capable model
