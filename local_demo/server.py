@@ -11,6 +11,7 @@ run_demo.py - the dashboard updates on its own 10-second poll (dashboard/index.h
 """
 
 import json
+import os
 import sys
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -23,7 +24,7 @@ from local_demo import bootstrap  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DASHBOARD_DIR = REPO_ROOT / "dashboard"
-PORT = 8787
+PORT = int(os.environ.get("LEASH_PORT", "8787"))
 
 from local_demo.scenarios import ASG_NAME, DEV_INSTANCE, PROD_INSTANCE  # noqa: E402
 
@@ -165,7 +166,12 @@ def main(argv: list[str] | None = None):
         for scenario in SCENARIOS:
             run_one(scenario.key, world)
 
-    httpd = ThreadingHTTPServer(("localhost", PORT), Handler)
+    try:
+        httpd = ThreadingHTTPServer(("localhost", PORT), Handler)
+    except OSError as exc:
+        print(f"port {PORT} is already in use ({exc}). Is another local_demo/server.py running? "
+              f"Stop it, or start this one with LEASH_PORT=<n>.")
+        return 1
     url = f"http://localhost:{PORT}"
     print(f"\nLeash local dashboard: {url}")
     print("Drive scenarios from another terminal:  python local_demo/run_demo.py disk-full"
