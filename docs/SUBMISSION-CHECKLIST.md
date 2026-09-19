@@ -35,8 +35,8 @@ schedule page and the form closes hard.
 
 ## Ship It track specifics
 
-- Live URL: http://leash-dashboard-431578779465-us-east-1.s3-website-us-east-1.amazonaws.com
-  (API https://zjebhhtr9h.execute-api.us-east-1.amazonaws.com). Keep the stack up through
+- Live URL (https, served by the API): https://zjebhhtr9h.execute-api.us-east-1.amazonaws.com/
+  The bucket's own endpoint (http://leash-dashboard-431578779465-us-east-1.s3-website-us-east-1.amazonaws.com) serves the same page over http. Keep the stack up through
   judging; the prod decoy is stopped. The brain runs on the stack's EC2 instance (`leash-brain`)
   24/7 under the worker instance role, so the Ask box and alarms are answered without any laptop.
 - Cost guard: the HTTP API is throttled (5 req/s, burst 10); the agent role has explicit denies on
