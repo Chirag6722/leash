@@ -55,6 +55,21 @@ def configure(outputs: dict) -> None:
     os.environ.pop("LEASH_SANDBOX_UNLEASHED", None)
 
 
+def _busy(flag: bool) -> None:
+    """Marker file while a message is being handled (LEASH_BUSY_FILE, default none): the EC2
+    brain's update timer checks it so a code refresh never kills an answer mid-flight."""
+    path = os.environ.get("LEASH_BUSY_FILE")
+    if not path:
+        return
+    try:
+        if flag:
+            Path(path).write_text(str(os.getpid()), encoding="utf-8")
+        else:
+            Path(path).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def handle_incident(body: dict) -> None:
     from agent.handler import handler
 
@@ -132,6 +147,7 @@ def main(argv: list[str]) -> int:
                                        VisibilityTimeout=900)
             for msg in resp.get("Messages", []):
                 got = True
+                _busy(True)  # the updater on the EC2 brain will not restart a busy worker
                 try:
                     body = json.loads(msg["Body"])
                     fn(body)
@@ -139,6 +155,8 @@ def main(argv: list[str]) -> int:
                     print(f"[{name}] failed: {type(exc).__name__}: {exc}", flush=True)
                 else:
                     sqs.delete_message(QueueUrl=url, ReceiptHandle=msg["ReceiptHandle"])
+                finally:
+                    _busy(False)
         if once and not got:
             idle_rounds += 1
             if idle_rounds >= 2:
