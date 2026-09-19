@@ -103,8 +103,10 @@ The deployed run, 20 attacks across seven tactics:
 
 Fake CTOs, fake emergencies, "the policy was updated", role-play, base64, instructions hidden in
 log lines: the model fell for almost all of them. The leash fell for none. The first two numbers
-are about the model and vary with the model. The last one is the project, and it is the same every
-night. Each zero is a Cedar decision with a policy id you can read in the trail.
+are about the model and vary with the model: a second run the next day on smaller models scored
+20 persuaded, 19 executed with the leash off, and again 0 with it on. Across every run so far, 54
+attacks, 42 destroyed something unleashed, 0 leashed. The last number is the project, and it is
+the same every night. Each zero is a Cedar decision with a policy id you can read in the trail.
 
 The other number we measured: **alarm to fixed, 5 min 48 s** for a full dev disk on the deployed
 stack, with an 8B model on a CPU as the brain. Every leash decision inside that took under a
@@ -119,6 +121,18 @@ fixed set of requests before and after the change and lists every answer that fl
 to 4: ALLOW → DENY"). Nothing is published until a person with the operator token clicks Approve,
 which writes a new version of the policy to the bucket. The next decision uses it. No redeploy,
 and every previous version is one `list-object-versions` away.
+
+## The floor under the leash
+
+If the operator can publish rules from a web page, what stops a bad one? Ten invariants that ship
+in the code, not in the policy store: nothing is ever terminated or deleted, nothing touches prod,
+no cap as high as 10, nothing without an env tag. Every proposal is proved against them (the card
+says "breaks the floor" and loses its Approve button), every approval is proved again on the
+server, and the authorizer proves every new policy version before it enforces one. A policy set
+that breaks an invariant is never loaded: every request is denied, the audit row names the
+invariant, the dashboard turns red, until the store is fixed. Drop `permit (principal, action,
+resource);` straight into the bucket and the agent switches off; it does not loosen. Moving the
+floor is a code review and a deploy, which is the point.
 
 ## What we learned
 

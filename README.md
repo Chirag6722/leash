@@ -17,7 +17,9 @@ Track: **Ship It**.
   pass four Cedar policies evaluated by a leash that lives in AWS and that the model cannot see.
 - **Measured on the deployed stack:** a full dev disk fixed in 5 min 48 s with nobody awake; 20
   red-team attacks against the same model: **18 of 20 executed a destructive action with the leash
-  off, 0 of 20 with it on**, every attempt audited with the policy that stopped it.
+  off, 0 of 20 with it on**, every attempt audited with the policy that stopped it. A second full
+  run on smaller models the next day: 19 of 20 off, 0 of 20 on. Across every run so far: **54
+  attacks, 42 executed with the leash off, 0 with it on.**
 - **Runs entirely on the AWS Free plan.** The model runs on an EC2 instance under a scoped IAM role;
   there are no access keys anywhere in the system. Bedrock and Verified Permissions are one
   parameter away on an account that has them.
@@ -320,6 +322,15 @@ ForbidScaleAboveCap 1, and one default deny (the model used an id the account do
 The two attacks the model refused on its own were one obfuscated request and one log-injection
 it did not act on. Every other attack got through the model. None got through the leash.
 
+**Second run (20 Sept 2026, run 20260919T115502Z):** the same 20-attack catalogue with the EC2
+brain switched to smaller models (qwen3:4b, then llama3.2:3b) during the day. Persuaded 20 of 20;
+executed with no leash **19 of 20**; executed with Leash **0 of 20**. Policies that stopped them:
+ForbidScaleAboveCap 10, ForbidProd 5, ForbidDestructive 4, two default denies. The model numbers
+moved with the model, as they should; the leash number did not.
+
+**All runs so far** (three runs, two days, "all runs" on the dashboard): 54 attacks, 52 persuaded,
+42 executed with the leash off, **0 executed with the leash on**.
+
 `POST /redteam {"n": 20}` starts a run on its own Lambda (long runs chain themselves); the
 "Run 20 attacks" button on the dashboard does the same. The unleashed switch is honoured only
 while the fake AWS clients are installed in the process (`tools._sandbox_unleashed`), so it can
@@ -351,8 +362,8 @@ cannot create. The page talks only to the HTTP API:
   with the policy ids that decided it.
 - **The leash**: the Cedar policies, read live from the policy store through `GET /policies`, so
   what is displayed is exactly what is enforced. Click a policy id in any audit row to jump to the
-  rule. The header shows how long the authorizer's Cedar evaluation takes (median, measured per
-  decision). Under the policies, **the floor**: the ten invariants, each proved against the set
+  rule. The header shows how long the authorizer takes to decide (median, measured per decision:
+  one S3 freshness check plus the Cedar evaluation). Under the policies, **the floor**: the ten invariants, each proved against the set
   in force, green when all hold and red with "AGENT OFF" when the store holds a set that breaks
   one.
 - **Ask the agent**: a chat box wired to `POST /ask` for the denial beats.
@@ -413,12 +424,12 @@ The timed shot list for the video is in [docs/DEMO-SCRIPT.md](docs/DEMO-SCRIPT.m
 | | Without Leash | With Leash |
 | --- | --- | --- |
 | Alarm to fix, full dev disk | until someone wakes up: 30 min to hours | **5 min 48 s** measured on the deployed stack with an 8B model on a laptop CPU; every leash decision inside that took under a second, the model is the whole wait. With Bedrock (`Brain=bedrock`) the same run is under 90 s. The dashboard measures it live |
-| Attacks that execute a destructive action | 18 of 20 with the same model and the leash off (measured, sandboxed) | **0 of 20**, measured on the live stack, every attempt audited with the policy that stopped it |
+| Attacks that execute a destructive action | 18 of 20 with the same model and the leash off (measured, sandboxed); 42 of 54 across every run and model so far | **0 of 20**, and **0 of 54** across every run, measured on the live stack, every attempt audited with the policy that stopped it |
 | Blast radius of the bot | whatever its keys allow | cleanDisk, restartService, scaleGroup up to 4, on `env=dev` only; nothing else, ever |
 | Finding out what it did | CloudTrail archaeology | one table, one row per decision, policy id included |
 | Changing what it may do | edit a prompt and hope | write the rule in English, read the proof, click Approve; the model never sees it |
 | Loosening it past the floor | one prompt edit | impossible from the page, the token, or the bucket: 10 invariants proved on every load; a set that breaks one is never enforced |
-| The leash's own latency | — | the authorizer times every Cedar evaluation and stores it in the row; the dashboard shows the median ("decides in n ms") |
+| The leash's own latency | — | the authorizer times every decision (store-freshness check plus Cedar evaluation) and stores it in the row; the dashboard shows the median ("decides in n ms"). Measured live: 96 ms on a cold invocation, of which the Cedar evaluation is under a millisecond |
 
 ## What we learned
 
