@@ -9,6 +9,21 @@ Built by **thegoodengineers** (Bhumika Gurav, Chirag Honnyal, Abhijeet Sharma, A
 during **First Commit — Bharat Builds Tour Stop 01** (WeMakeDevs x AWS), 17–20 September 2026.
 Track: **Ship It**.
 
+## Sixty seconds
+
+- **Live:** https://zjebhhtr9h.execute-api.us-east-1.amazonaws.com/ (anyone can read the trail, ask the
+  agent and propose a rule; publishing a policy or launching attacks needs the operator token).
+- **What it is:** an on-call agent that fixes AWS incidents by itself, where every action must first
+  pass four Cedar policies evaluated by a leash that lives in AWS and that the model cannot see.
+- **Measured on the deployed stack:** a full dev disk fixed in 5 min 48 s with nobody awake; 20
+  red-team attacks against the same model: **18 of 20 executed a destructive action with the leash
+  off, 0 of 20 with it on**, every attempt audited with the policy that stopped it.
+- **Runs entirely on the AWS Free plan.** The model runs on an EC2 instance under a scoped IAM role;
+  there are no access keys anywhere in the system. Bedrock and Verified Permissions are one
+  parameter away on an account that has them.
+- **Twelve AWS services + two AWS open-source projects** (Strands Agents, Cedar); 160 tests with real
+  Cedar evaluation; CI on every push.
+
 ## The problem
 
 Small teams run on AWS with nobody watching at 3 AM. A disk fills, a container crashes, an alarm
@@ -351,6 +366,15 @@ Five beats, each visible on the dashboard (`DashboardUrl` output):
    beside them, and the **Alarm → fixed** tile showing the time the fix took.
 
 The timed shot list for the video is in [docs/DEMO-SCRIPT.md](docs/DEMO-SCRIPT.md).
+
+## Why not the obvious alternatives
+
+| Alternative | Why it is not enough |
+| --- | --- |
+| Rules in the system prompt | A prompt is advice. The red-team run shows the model was talked past its own rules 18 times out of 20; the leash never was. |
+| IAM alone | IAM cannot say "not above 4" or "only when the resource is tagged dev *and* the request context says so", and it cannot tell you which rule decided. It is the floor under the leash, not the leash. |
+| Bedrock Guardrails | Guardrails filter *words* in and out of the model. Leash decides *actions* on named resources with their real tags, and refuses before anything is called. |
+| A human approval step for everything | Then nobody sleeps. Leash approves the boring fixes automatically and refuses the dangerous ones structurally; humans get the summary and the option to write new rules in English. |
 
 ## Impact, in numbers
 
