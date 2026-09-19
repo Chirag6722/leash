@@ -4,7 +4,7 @@
 
 | | `Brain=worker`, `PolicyStore=s3` (default, Free plan) | `Brain=bedrock`, `PolicyStore=avp` |
 | --- | --- | --- |
-| Where the model runs | any machine running `local_demo/cloud_worker.py` (Ollama, or Bedrock if the account has it); `BrainOnEc2=true` puts it on an EC2 instance under the WorkerPolicy instance role where the account allows a non-micro instance | the agent Lambda on Bedrock |
+| Where the model runs | an EC2 instance (`BrainOnEc2=true`, free-tier-eligible `m7i-flex.large`) running Ollama + `local_demo/cloud_worker.py` under the WorkerPolicy instance role, no keys; the same worker also runs on any machine for development | the agent Lambda on Bedrock |
 | How alarms reach it | EventBridge -> SQS `leash-incidents` -> worker | EventBridge -> Lambda |
 | How `/ask` reaches it | API -> SQS `leash-requests` -> worker; reply via `GET /reply` | API invokes the Lambda synchronously |
 | Who evaluates Cedar | the authorizer Lambda, cedarpy, policies from the versioned S3 bucket | Amazon Verified Permissions |

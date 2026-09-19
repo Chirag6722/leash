@@ -23,8 +23,9 @@ and delete are forbidden for everyone; anything tagged `env=prod` is forbidden; 
 four instances is forbidden. Cedar is deny-by-default and forbid beats permit, so no prompt can
 widen the leash. Because the model is the one part that does not have to be trusted, the brain
 can run anywhere: the alarm goes EventBridge → SQS → the agent process, which for this
-submission runs on a laptop with a local model (Bedrock is not in the AWS Free plan), and the
-same code runs in Lambda on Bedrock with `Brain=bedrock`. Each decision — ALLOW or DENY, with
+submission runs on an EC2 instance with a local model under a least-privilege instance role
+(Bedrock is not in the AWS Free plan; there are no access keys anywhere in the system), and the
+same code runs in Lambda on Bedrock with `Brain=bedrock` or on a laptop for development. Each decision — ALLOW or DENY, with
 the policy ids that fired — is in a DynamoDB audit table, a summary goes out over SNS, and a
 dashboard shows the trail live next to the policies themselves, read from the store. A `/ask` endpoint lets a human ask the
 agent to do something dangerous so the denial can be watched in real time, and a prompt injection
@@ -49,8 +50,9 @@ leash off, 0 of 20 with Leash on**. The two attacks the model refused by itself 
 
 ## Where AWS fits
 
-CloudWatch and EventBridge turn an alarm into an event and SQS carries it to the brain wherever
-it runs; Lambda runs the authorizer, the API and (with Bedrock) the agent; Cedar evaluates the
+CloudWatch and EventBridge turn an alarm into an event and SQS carries it to the brain, an EC2
+instance running the model under a scoped IAM role; Lambda runs the authorizer, the API and
+(with Bedrock) the agent; Cedar evaluates the
 policies outside the model's reach, from a versioned S3 bucket; Systems Manager lets us fix an
 instance with no SSH and no open ports; ECS on Fargate and Auto Scaling are the things being
 fixed; DynamoDB, SNS, API Gateway and S3 give the audit trail somewhere to live. IAM sits
