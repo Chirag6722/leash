@@ -72,8 +72,11 @@ Parameters:
       access keys anywhere. false: run local_demo/cloud_worker.py on any machine instead.
   BrainInstanceType:
     Type: String
-    Default: m7i-flex.xlarge
-    Description: Instance type for the EC2 brain (16 GB RAM fits an 8B model comfortably).
+    Default: m7i-flex.large
+    Description: >-
+      Instance type for the EC2 brain. m7i-flex.large (2 vCPU, 8 GB) is free-tier-eligible, which
+      the Free plan requires, and holds an 8B Q4 model with the swap file UserData adds; use a
+      larger type on an account that allows it.
   BrainModel:
     Type: String
     Default: qwen3:8b
@@ -419,6 +422,9 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           set -euxo pipefail
+          # 8 GB of RAM is enough for an 8B Q4 model only with headroom: 6 GB of swap on gp3.
+          fallocate -l 6G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+          echo "/swapfile none swap sw 0 0" >> /etc/fstab
           dnf install -y git python3.11 python3.11-pip
           curl -fsSL https://ollama.com/install.sh | sh
           systemctl enable --now ollama
