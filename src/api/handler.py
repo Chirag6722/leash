@@ -4,7 +4,7 @@ Serves three HTTP API (payload format v2) routes behind API Gateway:
 
     GET  /health        -> {"ok": true}
     GET  /audit?limit=N -> {"items": [...]}   (newest first, via common.audit.list_audit)
-    GET  /policies      -> {"items": [...]}   (the Cedar policies, via common.authz.list_policies)
+    GET  /policies      -> {"items": [...], "policy_version", "floor": {invariants, holds}}
     GET  /redteam       -> {"items": [...], "summary": {...}}  (attack rows + the numbers)
     POST /redteam       -> {"run_id": ...}   starts an attack run on the red-team Lambda (async)
     POST /ask           -> Bedrock mode: invokes the agent Lambda synchronously and returns its
@@ -188,7 +188,14 @@ def _policies(event: dict) -> dict:
     from common.authz import list_policies_with_version
 
     items, version = list_policies_with_version()
-    return _response(200, {"items": items, "policy_version": version})
+    body = {"items": items, "policy_version": version}
+    try:
+        from common.authz import floor_report
+
+        body["floor"] = floor_report()
+    except Exception as exc:  # noqa: BLE001 - the policies still render without the floor
+        body["floor"] = {"error": str(exc)}
+    return _response(200, body)
 
 
 def _redteam_get(event: dict) -> dict:

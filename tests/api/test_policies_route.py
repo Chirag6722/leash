@@ -11,7 +11,9 @@ def test_policies_route_relays_rows(monkeypatch):
     monkeypatch.setattr(common.authz, "list_policies_with_version", lambda: (rows, "s3:test"))
     resp = h.handler({"routeKey": "GET /policies"}, None)
     assert resp["statusCode"] == 200
-    assert json.loads(resp["body"]) == {"items": rows, "policy_version": "s3:test"}
+    body = json.loads(resp["body"])
+    assert body["items"] == rows and body["policy_version"] == "s3:test"
+    assert body["floor"]["count"] == 10 and body["floor"]["holds"] is True  # the floor rides along
     assert resp["headers"]["Access-Control-Allow-Origin"] == "*"
 
 

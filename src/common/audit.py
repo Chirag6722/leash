@@ -36,8 +36,10 @@ def timestamp() -> str:
 
 
 def write_audit(incident_id: str, action: str, resource_type: str, resource_id: str, resource_env: str,
-                decision, result: str, alarm_name: str = "", summary: str = "") -> dict:
-    """PutItem one decision row; returns the plain-dict item that was written."""
+                decision, result: str, alarm_name: str = "", summary: str = "",
+                decision_ms: float | None = None) -> dict:
+    """PutItem one decision row; returns the plain-dict item that was written. `decision_ms` is
+    how long the Cedar evaluation itself took, when the caller measured it."""
     item = {
         "pk": incident_id,
         "sk": timestamp(),
@@ -53,6 +55,8 @@ def write_audit(incident_id: str, action: str, resource_type: str, resource_id: 
         "alarm_name": alarm_name,
         "summary": summary,
     }
+    if decision_ms is not None:
+        item["decision_ms"] = f"{decision_ms:.2f}"
     # Low-level client: attribute values are typed ({"S": ...}, {"L": [...]}).
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/dynamodb/client/put_item.html
     _client().put_item(TableName=_table(), Item=_serialize(item))

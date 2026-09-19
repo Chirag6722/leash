@@ -7,7 +7,10 @@ every decision is written to the audit table *by this function, before it answer
 process that asked (the agent, wherever it runs) can neither skip the audit nor see the policy
 text. That is stricter than the Verified Permissions path, where the tool wrote its own row.
 
-Invoked with {"op": "authorize" | "list_policies" | "result", ...}; see each handler.
+A policy set is proved against the floor (common.floor) before it is loaded; one that would
+permit what the floor forbids is never enforced: every decision is DENY until the store is fixed.
+
+Invoked with {"op": "authorize" | "list_policies" | "result" | "floor", ...}; see each handler.
 """
 
 from __future__ import annotations
@@ -15,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 
 log = logging.getLogger("leash.authz_service")
 log.setLevel(logging.INFO)
@@ -31,12 +35,15 @@ def _authorize(event: dict) -> dict:
     incident_id = str(event.get("incident_id") or "unset")
     alarm_name = str(event.get("alarm_name") or "")
 
+    started = time.perf_counter()
     decision = authz.evaluate_local(action, rtype, rid, env, context or {})
+    decision_ms = (time.perf_counter() - started) * 1000.0
     result = "pending" if decision.allowed else "skipped (denied)"
     if action == "scaleGroup" and context and "desiredCapacity" in context and not decision.allowed:
         result += f" desired={context['desiredCapacity']}"
     row = audit.write_audit(incident_id=incident_id, action=action, resource_type=rtype, resource_id=rid,
-                            resource_env=env, decision=decision, result=result, alarm_name=alarm_name)
+                            resource_env=env, decision=decision, result=result, alarm_name=alarm_name,
+                            decision_ms=decision_ms)
     log.info("decision %s %s %s env=%s -> %s %s", incident_id, action, rid, env,
              "ALLOW" if decision.allowed else "DENY", decision.policy_ids)
     return {
@@ -46,7 +53,15 @@ def _authorize(event: dict) -> dict:
         "errors": decision.errors,
         "audit_ref": {"pk": row["pk"], "sk": row["sk"]},
         "policy_version": authz.policy_version(),
+        "decision_ms": round(decision_ms, 2),
     }
+
+
+def _floor(event: dict) -> dict:
+    """Every floor invariant against the policy set this function enforces."""
+    from common import authz
+
+    return authz.floor_report()
 
 
 def _list_policies(event: dict) -> dict:
@@ -64,7 +79,7 @@ def _result(event: dict) -> dict:
     return {"ok": True}
 
 
-OPS = {"authorize": _authorize, "list_policies": _list_policies, "result": _result}
+OPS = {"authorize": _authorize, "list_policies": _list_policies, "result": _result, "floor": _floor}
 
 
 def handler(event, context):
