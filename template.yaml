@@ -442,6 +442,7 @@ Resources:
           [Service]
           WorkingDirectory=/opt/leash
           Environment=HOME=/root
+          Environment=LEASH_BUSY_FILE=/run/leash-worker.busy
           Environment=PYTHONPATH=/opt/leash/src
           Environment=AWS_REGION=${AWS::Region}
           Environment=STACK_NAME=${AWS::StackName}
@@ -458,7 +459,12 @@ Resources:
           # Keep the code current: pull main every 10 minutes and restart if it changed.
           cat > /usr/local/bin/leash-update <<'UPD'
           #!/bin/bash
-          cd /opt/leash && git fetch -q origin main && [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ] && git reset -q --hard origin/main && systemctl restart leash-worker
+          # Pull main; restart the worker only when it is idle (the busy marker is set while a
+          # message is being handled), otherwise try again on the next tick.
+          cd /opt/leash && git fetch -q origin main || exit 0
+          [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ] || exit 0
+          [ -e /run/leash-worker.busy ] && exit 0
+          git reset -q --hard origin/main && systemctl restart leash-worker
           exit 0
           UPD
           chmod +x /usr/local/bin/leash-update
