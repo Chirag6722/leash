@@ -178,3 +178,30 @@ def test_api_propose_is_queued_in_worker_mode(store, monkeypatch):
     assert st == 202 and body["status"] == "queued"
     assert sent == [{"kind": "propose", "text": "never touch staging"}]
     assert proposals.list_proposals() == []  # nothing stored until the worker drafts it
+
+
+CAP3 = 'forbid (\n    principal,\n    action == Leash::Action::"scaleGroup",\n    resource\n) when { context.desiredCapacity > 3 };\n'
+
+
+def _move_the_cap(store):
+    (store / "policies" / "ForbidScaleAboveCap.cedar").write_text(CAP3, encoding="utf-8", newline="\n")
+    authz._LOCAL.clear()
+
+
+def test_approve_refuses_a_stale_proof_when_policies_moved(store):
+    """Draft proved against cap 4; someone sets the cap to 3 before the click. The proof the
+    person saw ('scale dev to 4: ALLOW -> DENY') no longer describes what would happen."""
+    row = proposals.propose("the bot may never scale above 2")
+    assert row["changed"]  # proved against the store as it was
+    _move_the_cap(store)
+    with pytest.raises(ValueError, match="changed since this draft was proved"):
+        proposals.approve(row["pk"])
+    # a fresh proposal against the current store approves normally
+    again = proposals.propose("the bot may never scale above 2")
+    assert proposals.approve(again["pk"])["name"] == "ForbidScaleAboveCap"
+
+
+def test_approve_still_works_when_the_move_did_not_change_the_effect(store):
+    row = proposals.propose("the bot must not restart anything on prod")
+    _move_the_cap(store)  # unrelated edit: the restart rule's proof is identical
+    assert proposals.approve(row["pk"])["name"].startswith("Forbid")

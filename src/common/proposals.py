@@ -278,6 +278,19 @@ def approve(proposal_id: str) -> dict:
     if p.get("status") == "approved":
         raise ValueError("already approved")
     name, statement = p["name"], p["statement"]
+
+    # The person is approving the proof they saw. If the policy set moved since the draft was
+    # proved (another approval, a set-cap.sh, a hand edit), prove it again against what is in
+    # force now and refuse when the outcome differs - a stale proof is not consent.
+    files, current_version = authz._policy_files()
+    if p.get("policy_version_at_draft") and current_version != p.get("policy_version_at_draft"):
+        fresh = prove(name, statement, files)
+        if fresh["changed"] != list(p.get("changed") or []):
+            raise ValueError(
+                "the policies changed since this draft was proved and its effect is now different "
+                f"(was: {p.get('changed') or 'no change'}; now: {fresh['changed'] or 'no change'}). "
+                "Propose it again to see the current proof."
+            )
     key = f"cedar/policies/{name}.cedar"
 
     bucket = os.environ.get("LEASH_CEDAR_S3_BUCKET")
