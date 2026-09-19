@@ -108,19 +108,30 @@ def _health(event: dict) -> dict:
     if os.environ.get("REQUEST_QUEUE_URL"):
         from datetime import datetime, timezone
 
-        from common.audit import read_heartbeat
+        from common.audit import read_heartbeats
 
         brain = {"mode": "worker", "online": False}
+        brains = []
         try:
-            hb = read_heartbeat()
+            rows = read_heartbeats()
         except Exception as exc:  # noqa: BLE001 - health must not fail on a missing row
-            hb, brain["error"] = None, str(exc)
-        if hb:
-            seen = datetime.strptime(hb["at"], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
-            age = (datetime.now(timezone.utc) - seen).total_seconds()
-            brain.update(online=age < HEARTBEAT_STALE_S, seen=hb["at"], age_s=int(age),
-                         model=hb.get("model", ""), host=hb.get("host", ""))
+            rows, brain["error"] = [], str(exc)
+        now = datetime.now(timezone.utc)
+        for hb in rows:
+            try:
+                seen = datetime.strptime(hb["at"], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+            except (KeyError, ValueError):
+                continue
+            age = int((now - seen).total_seconds())
+            brains.append({"host": hb.get("host", ""), "model": hb.get("model", ""), "seen": hb["at"],
+                           "age_s": age, "online": age < HEARTBEAT_STALE_S})
+        online = [b for b in brains if b["online"]]
+        if brains:
+            lead = online[0] if online else brains[0]
+            brain.update(online=bool(online), seen=lead["seen"], age_s=lead["age_s"],
+                         model=lead["model"], host=lead["host"], count=len(online))
         body["brain"] = brain
+        body["brains"] = brains
     elif os.environ.get("LEASH_LOCAL_MODEL") == "1":
         # local_demo: the agent runs in this process on a local model (or the scripted stand-in).
         body["brain"] = {"mode": "local", "online": True,

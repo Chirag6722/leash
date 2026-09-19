@@ -217,12 +217,18 @@ class _FakeDynamoDB:
                 return {}
         raise KeyError("row not found")
 
-    def query(self, TableName, IndexName, KeyConditionExpression, ExpressionAttributeValues,
-              ScanIndexForward, Limit):
+    def query(self, TableName, KeyConditionExpression, ExpressionAttributeValues, IndexName=None,
+              ScanIndexForward=True, Limit=None):
         want = next(iter(ExpressionAttributeValues.values()))["S"]
-        rows = [it for it in WORLD.audit_items if it.get("gsi1pk", {}).get("S") == want]
-        items = list(reversed(rows))[:Limit] if not ScanIndexForward else rows[:Limit]
-        return {"Items": items}
+        key = "gsi1pk" if IndexName else "pk"
+        rows = [it for it in WORLD.audit_items if it.get(key, {}).get("S") == want]
+        if key == "pk":  # a table query returns one item per (pk, sk): keep the newest per sk
+            latest = {}
+            for it in rows:
+                latest[it["sk"]["S"]] = it
+            rows = list(latest.values())
+        items = list(reversed(rows)) if not ScanIndexForward else rows
+        return {"Items": items[:Limit] if Limit else items}
 
 
 _FAKES = {
