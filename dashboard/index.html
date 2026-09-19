@@ -79,6 +79,7 @@
   button:active { transform: translateY(0); }
   button:disabled { opacity: 0.45; cursor: wait; transform: none; }
   button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button small { font: 500 10px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; opacity: .6; padding: 3px 6px; border-radius: 999px; border: 1px solid currentColor; }
 
   /* the audit trail */
   .scroll { overflow-x: auto; margin: 0 -8px; padding: 0 8px; }
@@ -274,7 +275,7 @@
   <section class="arena" id="arena">
     <div class="head">
       <h2>Red team <small>an attacker model vs the leash · same model, same attacks, with and without Cedar</small></h2>
-      <button id="attack" title="Runs attacks against the real agent (Cedar on) and against the same agent with authorisation off inside an in-memory sandbox">Run 20 attacks</button>
+      <button id="attack" title="Operator only: runs attacks against the real agent (Cedar on) and against the same agent with authorisation off inside an in-memory sandbox. Takes a while on a CPU brain.">Run 20 attacks <small>operator</small></button>
       <span class="run" id="arena-status"></span>
       <span class="run" id="arena-scope" style="margin-left:auto"><a href="#" id="scope-latest">latest run</a> · <a href="#" id="scope-all">all runs</a></span>
     </div>
@@ -597,7 +598,8 @@
       var deny = String(it.decision).toUpperCase() === "DENY";
       if (deny) {
         if (isRedTeam(it)) attackDenies++; else denies++;
-        if (!latestDeny) latestDeny = it;
+        // the sentence names the policy, so prefer the newest denial that carries one
+        if (!latestDeny || (!(latestDeny.policy_ids || []).length && (it.policy_ids || []).length)) latestDeny = it;
       }
       else if (it.alarm_name) fixed[it.pk] = true;
     });
@@ -951,12 +953,14 @@
     if (!API) return;
     var btn = $("attack");
     var headers = operatorHeaders();
+    if (!headers["x-leash-token"]) { $("arena-status").textContent = "operator only: a new run needs the stack's operator token. The finished runs are under “all runs”."; return; }
     btn.disabled = true;
     $("arena-status").textContent = "starting…";
     fetch(API + "/redteam", { method: "POST", headers: headers, body: JSON.stringify({ n: 20 }) })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }); })
       .then(function (res) {
         forgetOperator(res.status);
+        if (res.status === 401) { $("arena-status").textContent = "that token was not accepted; only the operator can start a run."; btn.disabled = false; return; }
         if (!res.ok || res.j.error) { $("arena-status").textContent = "error: " + (res.j.error || "request failed"); btn.disabled = false; return; }
         var before = parseInt($("rt-n").textContent, 10) || 0;
         arenaPending = before + res.j.n;
