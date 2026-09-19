@@ -37,8 +37,8 @@ schedule page and the form closes hard.
 
 - Live URL: http://leash-dashboard-431578779465-us-east-1.s3-website-us-east-1.amazonaws.com
   (API https://zjebhhtr9h.execute-api.us-east-1.amazonaws.com). Keep the stack up through
-  judging; the prod decoy is stopped. The brain must be running (`local_demo/cloud_worker.py`)
-  for the Ask box and alarms to be answered; the audit trail and policies are served regardless.
+  judging; the prod decoy is stopped. The brain runs on the stack's EC2 instance (`leash-brain`)
+  24/7 under the worker instance role, so the Ask box and alarms are answered without any laptop.
 - Cost guard: the HTTP API is throttled (5 req/s, burst 10); the agent role has explicit denies on
   every delete API; tear down with `scripts/teardown.sh` once results are announced.
 - Public-URL guard: publishing a policy and launching a red-team run need the operator token; a

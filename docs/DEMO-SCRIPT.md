@@ -63,6 +63,8 @@ the cloud and local recordings match.
 
 Notes for the editor:
 
+- One line to say somewhere: "the model runs on an EC2 instance under a scoped IAM role; the leash
+  runs in Lambda; nothing in the system holds an access key."
 - **Before recording**, have the stack's `OperatorToken` value ready: the first "Run 20 attacks"
   or "Approve" click asks for it once. Everything else on the page needs nothing.
 - When a decision lands, the row slides in with a glow and a toast names the action, resource
