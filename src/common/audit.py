@@ -100,11 +100,12 @@ def get_reply(incident_id: str) -> dict | None:
     return _deserialize(item) if item else None
 
 
-def write_heartbeat(model: str, host: str) -> dict:
-    """One liveness row per brain (sk = its name), rewritten every few seconds while it polls, so
-    several brains (an EC2 instance and a laptop, say) can share the queues and all be seen."""
+def write_heartbeat(model: str, host: str, busy: bool = False) -> dict:
+    """One liveness row per brain (sk = its name), rewritten every few seconds, so several brains
+    (an EC2 instance and a laptop, say) can share the queues and all be seen; `busy` says whether
+    it is answering right now."""
     item = {"pk": HEARTBEAT_KEY[0], "sk": host or HEARTBEAT_KEY[1], "gsi1pk": "HEARTBEAT", "at": timestamp(),
-            "model": model, "host": host}
+            "model": model, "host": host, "busy": "true" if busy else "false"}
     _client().put_item(TableName=_table(), Item=_serialize(item))
     return item
 
