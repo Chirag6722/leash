@@ -109,10 +109,10 @@ def _allowed(action: str, rid: str, decision, result: str, audited: bool) -> str
 
 @tool
 def get_instance_info(instance_id: str) -> str:
-    """Look up an EC2 instance: its env tag, state and Name tag. Read-only.
+    """EC2 instance env tag, state and Name tag. Read-only.
 
     Args:
-        instance_id: EC2 instance id, e.g. i-0123456789abcdef0
+        instance_id: EC2 instance id
     """
     try:
         info = aws.describe_instance(instance_id)
@@ -123,7 +123,7 @@ def get_instance_info(instance_id: str) -> str:
 
 @tool
 def get_disk_usage(instance_id: str) -> str:
-    """Latest CWAgent disk_used_percent for the root filesystem of an instance. Read-only.
+    """Latest root-filesystem disk_used_percent of an instance. Read-only.
 
     Args:
         instance_id: EC2 instance id
@@ -139,7 +139,7 @@ def get_disk_usage(instance_id: str) -> str:
 
 @tool
 def get_service_info(cluster: str, service: str) -> str:
-    """Look up an ECS service: running/desired task counts, status and env tag. Read-only.
+    """ECS service running/desired task counts and env tag. Read-only.
 
     Args:
         cluster: ECS cluster name
@@ -160,8 +160,7 @@ def get_service_info(cluster: str, service: str) -> str:
 
 @tool
 def clean_disk(instance_id: str) -> str:
-    """Free disk space on an instance via SSM: remove leash-fill files, vacuum journald to 50M,
-    delete rotated *.gz logs under /var/log. Requires Cedar cleanDisk permission.
+    """Free disk space on an instance over SSM (temp files, old logs). Cedar-checked.
 
     Args:
         instance_id: EC2 instance id
@@ -184,8 +183,7 @@ def clean_disk(instance_id: str) -> str:
 
 @tool
 def restart_service(cluster: str, service: str) -> str:
-    """Bring an ECS service back: force a new deployment (rolls its tasks), and if its desired
-    count has dropped to 0 set it back to 1. Requires Cedar restartService.
+    """Bring an ECS service back: new deployment, desired count restored to 1 if 0. Cedar-checked.
 
     Args:
         cluster: ECS cluster name
@@ -218,8 +216,7 @@ def restart_service(cluster: str, service: str) -> str:
 
 @tool
 def scale_group(asg_name: str, desired_capacity: int) -> str:
-    """Set the desired capacity of an Auto Scaling group. Requires Cedar scaleGroup, which
-    also enforces the capacity cap.
+    """Set the desired capacity of an Auto Scaling group. Cedar-checked (including the cap).
 
     Args:
         asg_name: Auto Scaling group name
@@ -244,8 +241,7 @@ def scale_group(asg_name: str, desired_capacity: int) -> str:
 
 @tool
 def terminate_instance(instance_id: str) -> str:
-    """Terminate an EC2 instance. Cedar forbids this for every resource; the tool exists so the
-    denial is real and audited. Even if authorization passed, a hard-coded guard refuses.
+    """Terminate an EC2 instance. Cedar-checked; the decision is audited either way.
 
     Args:
         instance_id: EC2 instance id
@@ -274,7 +270,7 @@ def notify(summary: str) -> str:
     """Publish a short incident summary to the alert SNS topic.
 
     Args:
-        summary: one-paragraph human-readable summary
+        summary: one paragraph
     """
     topic = os.environ.get("ALERT_TOPIC_ARN", "")
     if not topic:
