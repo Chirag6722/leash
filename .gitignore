@@ -8,3 +8,4 @@ dashboard/config.js
 .build/
 local_demo_run.log
 server.log
+verify/target/

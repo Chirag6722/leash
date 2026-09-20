@@ -72,7 +72,7 @@ The dashboard computes these from the audit trail itself, not from a slide:
 | Who can destroy something at 3 AM | anyone with the admin keys the bot would need | nobody: terminate and delete are forbidden by policy, by IAM, and by code |
 | How you find out what the bot did | grep CloudTrail | one table: every ALLOW and DENY with the policy id that decided it |
 | How you change what the bot may do | edit a prompt and hope | write the rule in English; Cedar validates the draft, a proof lists every answer that flips, a person approves |
-| Loosening it past the floor | one prompt edit | impossible from the page, the token or the bucket: ten invariants (never terminate, never delete, nothing on prod, no cap of 10, nothing untagged) are proved on every proposal, approval and policy load. A set that breaks one is never enforced: the agent switches off, it does not loosen |
+| Loosening it past the floor | one prompt edit | impossible from the page, the token or the bucket: ten invariants (never terminate, never delete, nothing on prod, no cap of 10, nothing untagged) are checked on every proposal, approval and policy load, and the floor is **formally verified over every possible request** by Cedar's symbolic compiler and the cvc5 SMT solver, in CI, on every drafted rule, and on the live store whenever it changes. A set that breaks one is never enforced: the agent switches off, it does not loosen |
 | Cost at rest | — | two `t3.micro` (one stopped) and a quarter Fargate vCPU; everything else is pay-per-use |
 
 ## What we learned

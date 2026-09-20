@@ -25,7 +25,7 @@ import os
 import re
 from dataclasses import asdict, dataclass, field
 
-from common import audit, authz, floor
+from common import audit, authz, floor, smtproof
 
 PARTITION = "PROPOSAL"
 MAX_TEXT = 500
@@ -186,6 +186,9 @@ def prove(name: str, statement: str, files: dict) -> dict:
     before_text = "\n".join(f'@id("{n}")\n{t}' for n, t in current.items())
     after_text = "\n".join(f'@id("{n}")\n{t}' for n, t in after.items())
     breaks = floor.describe(floor.check(after_text, schema, _decide))
+    # Where the host carries the prover (the EC2 brain does), the same candidate set is also
+    # proved for EVERY request by the symbolic compiler and cvc5; None where it cannot run.
+    smt = smtproof.prove_files({**after, "schema": files["schema"]})
     rows, changed = [], []
     for label, action, rtype, rid, env, ctx in PROOF_CASES:
         b_ok, b_ids = _decide(before_text, schema, action, rtype, rid, env, ctx)
@@ -195,7 +198,7 @@ def prove(name: str, statement: str, files: dict) -> dict:
         rows.append(row)
         if b_ok != a_ok:
             changed.append(f"{label}: {row['before']} -> {row['after']}")
-    return {"cases": rows, "changed": changed, "replaces": name in current, "breaks": breaks}
+    return {"cases": rows, "changed": changed, "replaces": name in current, "breaks": breaks, "smt": smt}
 
 
 # --- the two entry points --------------------------------------------------------------------
@@ -235,7 +238,7 @@ def propose(text: str, drafter=None) -> dict:
         draft = Draft("Proposed", "", "none", "no template fits this sentence and no model was available")
 
     validation = validate(draft.statement, schema) if draft.statement else Validation(False, ["empty draft"])
-    proof = prove(draft.name, draft.statement, files) if validation.ok else {"cases": [], "changed": [], "replaces": False, "breaks": []}
+    proof = prove(draft.name, draft.statement, files) if validation.ok else {"cases": [], "changed": [], "replaces": False, "breaks": [], "smt": None}
 
     pk = "proposal-" + audit.timestamp().replace("-", "").replace(":", "").replace(".", "")[:21]
     row = audit.write_generic(pk, PARTITION, {
@@ -243,6 +246,7 @@ def propose(text: str, drafter=None) -> dict:
         "valid": "true" if validation.ok else "false", "errors": validation.errors,
         "changed": proof["changed"], "replaces": "true" if proof["replaces"] else "false", "breaks": proof["breaks"],
         "cases": json.dumps(proof["cases"]), "status": "proposed", "policy_version_at_draft": version,
+        **smtproof.flatten(proof.get("smt")),
     })
     row["cases"] = proof["cases"]
     return row
@@ -280,6 +284,11 @@ def approve(proposal_id: str) -> dict:
     # never written to the store.
     if fresh["breaks"]:
         raise ValueError("refused: publishing this would break the floor (" + "; ".join(fresh["breaks"]) + ")")
+    smt = fresh.get("smt") or ({"holds": p.get("smt_holds") == "true", "counterexamples": [p.get("smt_counterexample", "")]}
+                               if p.get("smt_holds") else None)
+    if smt and "error" not in smt and not smt["holds"]:
+        raise ValueError("refused: the SMT solver found a request this would allow outside the floor ("
+                         + (smt["counterexamples"] or ["see the proposal"])[0] + ")")
     if p.get("policy_version_at_draft") and current_version != p.get("policy_version_at_draft"):
         if fresh["changed"] != list(p.get("changed") or []):
             raise ValueError(

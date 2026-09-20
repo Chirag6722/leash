@@ -134,6 +134,18 @@ invariant, the dashboard turns red, until the store is fixed. Drop `permit (prin
 resource);` straight into the bucket and the agent switches off; it does not loosen. Moving the
 floor is a code review and a deploy, which is the point.
 
+Then we went one step further than testing. Cedar was designed to be analysable, and AWS ships a
+symbolic compiler for it that turns a policy set into SMT formulas. We wrote the floor as one Cedar
+policy set, everything the leash may ever allow, and ask the cvc5 solver: is there any request,
+across every principal, action, resource, tag value and capacity the schema admits, that the
+enforced policies allow and the floor forbids? The answer is exact, and it takes under a second.
+It runs in CI on every push, on every English rule the model drafts before a person sees it, and on
+the live policy store whenever it changes; the dashboard shows the verdict under the floor. Raise
+the scale cap to 20 and the solver hands back the exact request that escapes: `scaleGroup,
+desiredCapacity: 17`. As far as we know, this is the first AI agent whose action space is bounded
+by a formally verified floor: not "the prompt says", not "the tests pass", but "no such request
+exists".
+
 ## What we learned
 
 **Put the guardrail outside the model.** Our first version explained the rules in the system

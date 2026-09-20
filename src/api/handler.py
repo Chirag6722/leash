@@ -193,6 +193,12 @@ def _policies(event: dict) -> dict:
         from common.authz import floor_report
 
         body["floor"] = floor_report()
+        try:
+            from common.audit import read_floor_proof
+
+            body["floor"]["smt"] = read_floor_proof()
+        except Exception as exc:  # noqa: BLE001
+            body["floor"]["smt"] = {"error": str(exc)}
     except Exception as exc:  # noqa: BLE001 - the policies still render without the floor
         body["floor"] = {"error": str(exc)}
     return _response(200, body)

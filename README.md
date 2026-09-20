@@ -23,11 +23,15 @@ Track: **Ship It**.
 - **Runs entirely on the AWS Free plan.** The model runs on an EC2 instance under a scoped IAM role;
   there are no access keys anywhere in the system. Bedrock and Verified Permissions are one
   parameter away on an account that has them.
-- **The leash has a floor.** Ten invariants ship in code, not in the policy store: nothing is ever
-  terminated or deleted, nothing touches prod, no scale cap of 10, nothing without an env tag. Every
-  proposal, every approval and every hot-reload is proved against them. A policy set that would
-  break one is never loaded: the agent switches off, it does not loosen. Not even the operator token
-  can publish past it.
+- **The leash has a floor, and the floor is formally verified.** Ten invariants ship in code, not
+  in the policy store: nothing is ever terminated or deleted, nothing touches prod, no scale cap of
+  10, nothing without an env tag. Every proposal, approval and hot-reload is checked against them,
+  and a policy set that would break one is never loaded. On top of that, **Cedar's symbolic compiler
+  and the cvc5 SMT solver prove, for every possible request the schema admits, that the enforced
+  policies allow nothing outside the floor**: on every push in CI, on every English rule the brain
+  drafts, and on the live policy set every time it changes. Not a sample of requests: all of them.
+  Loosen the cap to 20 and the solver hands back the exact request that escapes
+  (`scaleGroup, desiredCapacity: 17`) in under a second.
 - **Twelve AWS services + two AWS open-source projects** (Strands Agents, Cedar); 167 tests with real
   Cedar evaluation; CI on every push.
 
@@ -174,6 +178,43 @@ request is denied with `Floor:<invariant>` in the audit row, and the dashboard's
 turns red, until the store is fixed. A `permit (principal, action, resource);` dropped straight
 into the bucket therefore switches the agent off; it opens nothing. Moving the floor itself is
 a code change, a review and a deploy, which is the point.
+
+### Proved for every possible request
+
+Ten sampled requests are a test. [`verify/`](verify/) is a proof. It hands the enforced policies,
+the schema and [`cedar/floor.cedar`](cedar/floor.cedar) (the floor written as one Cedar policy
+set: everything the leash may ever allow) to
+[Cedar's symbolic compiler](https://github.com/cedar-policy/cedar/tree/main/cedar-policy-symcc),
+which turns them into SMT formulas, and asks cvc5 one question per request environment:
+*is there any request the enforced policies allow that the floor forbids?* That is policy-set
+implication (leash ⊆ floor), decided exactly over every principal, action, resource, `env` string
+and capacity value the schema admits. If the answer is yes, the solver returns the request.
+
+```
+$ scripts/prove-floor.sh
+proved  Leash::Agent / Leash::Action::"terminateInstance" / Leash::Instance  (never allows anything)
+proved  Leash::Agent / Leash::Action::"scaleGroup" / Leash::AutoScalingGroup  (allows only inside the floor)
+...
+FLOOR HOLDS: 7 request environments, 0 escape(s). Every request the leash can ever allow is inside the floor.
+
+$ sed -i 's/> 4/> 20/' /tmp/loosened/policies/ForbidScaleAboveCap.cedar && scripts/prove-floor.sh /tmp/loosened
+ESCAPE  Leash::Agent / Leash::Action::"scaleGroup" / Leash::AutoScalingGroup
+        request:  principal Leash::Agent::"leash", action scaleGroup, resource AutoScalingGroup, context {desiredCapacity: 17}
+        leash says Allow, floor says Deny
+FLOOR BROKEN: 7 request environments, 1 escape(s).
+```
+
+It runs in three places. **CI** (`prove-floor` workflow) on every change to a policy, the schema,
+the floor or the prover, and it also proves that a loosened cap is caught, so the check cannot
+pass vacuously. **The brain host**: the EC2 instance carries the prover, so every English rule
+the model drafts is proved for every request before a person sees the card (the card says so, or
+shows the escaping request and loses its Approve button), and the worker re-proves the live
+policy set whenever the bucket changes and publishes the verdict, which the dashboard shows under
+the floor. **Your laptop**: `scripts/prove-floor.sh --live` syncs the deployed bucket and proves
+what is actually enforced, in under a second after the first build.
+
+To our knowledge this is the first AI agent whose action space is bounded by a formally verified
+policy floor: not "the prompt says", not "the tests pass", but "no request exists".
 
 ## Deploy
 
@@ -428,7 +469,7 @@ The timed shot list for the video is in [docs/DEMO-SCRIPT.md](docs/DEMO-SCRIPT.m
 | Blast radius of the bot | whatever its keys allow | cleanDisk, restartService, scaleGroup up to 4, on `env=dev` only; nothing else, ever |
 | Finding out what it did | CloudTrail archaeology | one table, one row per decision, policy id included |
 | Changing what it may do | edit a prompt and hope | write the rule in English, read the proof, click Approve; the model never sees it |
-| Loosening it past the floor | one prompt edit | impossible from the page, the token, or the bucket: 10 invariants proved on every load; a set that breaks one is never enforced |
+| Loosening it past the floor | one prompt edit | impossible from the page, the token, or the bucket: 10 invariants checked on every load, and the whole floor **proved over every possible request by an SMT solver** on every push, every drafted rule and every change to the live store |
 | The leash's own latency | — | the authorizer times every decision (store-freshness check plus Cedar evaluation) and stores it in the row; the dashboard shows the median ("decides in n ms"). Measured live: 96 ms on a cold invocation, of which the Cedar evaluation is under a millisecond |
 
 ## What we learned

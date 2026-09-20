@@ -448,6 +448,8 @@ Resources:
           Environment=STACK_NAME=${AWS::StackName}
           Environment=OLLAMA_MODEL_ID=${BrainModel}
           Environment="LEASH_WORKER_NAME=leash-brain (EC2 ${BrainInstanceType})"
+          Environment=LEASH_PROVE_BIN=/opt/leash/verify/target/release/leash-prove
+          Environment=CVC5=/opt/cvc5/bin/cvc5
           ExecStart=/usr/bin/python3.11 local_demo/cloud_worker.py
           Restart=always
           RestartSec=5
@@ -456,6 +458,23 @@ Resources:
           UNIT
           systemctl daemon-reload
           systemctl enable --now leash-worker
+          # The prover (verify/: Cedar's symbolic compiler + cvc5) proves the floor for every
+          # possible request. Built in the background; the worker picks it up on its next restart.
+          cat > /usr/local/bin/leash-build-prover <<'PRV'
+          #!/bin/bash
+          set -e
+          export HOME=/root
+          if [ ! -x /opt/cvc5/bin/cvc5 ]; then
+            curl -sSL -o /tmp/cvc5.zip https://github.com/cvc5/cvc5/releases/download/cvc5-1.3.1/cvc5-Linux-x86_64-static.zip
+            mkdir -p /opt/cvc5 && cd /tmp && unzip -qo cvc5.zip && cp -r cvc5-Linux-x86_64-static/* /opt/cvc5/ && chmod +x /opt/cvc5/bin/cvc5
+          fi
+          command -v cargo >/dev/null || { dnf install -y gcc; curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal; }
+          source /root/.cargo/env
+          cd /opt/leash/verify && cargo build --release --quiet
+          PRV
+          chmod +x /usr/local/bin/leash-build-prover
+          dnf install -y unzip
+          nohup bash -c "/usr/local/bin/leash-build-prover && systemctl restart leash-worker" >/var/log/leash-prover-build.log 2>&1 &
           # Keep the code current: pull main every 10 minutes and restart if it changed.
           cat > /usr/local/bin/leash-update <<'UPD'
           #!/bin/bash
@@ -464,7 +483,9 @@ Resources:
           cd /opt/leash && git fetch -q origin main || exit 0
           [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ] || exit 0
           [ -e /run/leash-worker.busy ] && exit 0
-          git reset -q --hard origin/main && systemctl restart leash-worker
+          git reset -q --hard origin/main
+          (source /root/.cargo/env 2>/dev/null && cd verify && cargo build --release --quiet) || true
+          systemctl restart leash-worker
           exit 0
           UPD
           chmod +x /usr/local/bin/leash-update
