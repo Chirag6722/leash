@@ -1064,6 +1064,10 @@
       (valid ? '<div class="muted" style="margin-top:6px">Proof: ' + (changed.length ? changed.length + " request" + (changed.length === 1 ? "" : "s") + " would change" : "nothing would change - this rule is redundant") + "</div>" : "") +
       (proofRows ? '<ul class="proof">' + proofRows + "</ul>" : "") +
       (breaks.length ? '<div class="errs">Cannot be published, with or without the token: it would permit what the floor forbids.\n' + esc(breaks.join("\n")) + "</div>" : "") +
+      (p.history_rows ? '<div class="muted" style="margin-top:6px">Against the record: ' + (parseInt(p.history_flipped, 10)
+          ? '<b style="color:var(--warn)">would have changed ' + esc(p.history_flipped) + " of the last " + esc(p.history_rows) + " real decisions</b>"
+          : "would have changed none of the last " + esc(p.history_rows) + " real decisions") +
+          ((p.history_flips || []).length ? '<ul class="proof">' + (p.history_flips || []).map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>" : "") + "</div>" : "") +
       (p.smt_holds ? '<div class="muted" style="margin-top:6px">SMT: ' + (p.smt_holds === "true"
           ? '<b style="color:var(--allow)">proved for every possible request</b> (' + esc(p.smt_environments) + " environments, " + esc(p.smt_solver || "cvc5") + ", " + esc(p.smt_ms) + " ms)"
           : '<b style="color:var(--deny)">escape found</b>: <code>' + esc(p.smt_counterexample || "") + "</code>") + "</div>" : "") +
