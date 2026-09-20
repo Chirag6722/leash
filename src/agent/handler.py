@@ -12,6 +12,8 @@ import os
 import re
 from datetime import datetime, timezone
 
+from strands.types.exceptions import MaxTokensReachedException
+
 from agent import tools
 from agent.agent import SYSTEM_PROMPT, build_agent
 
@@ -207,7 +209,7 @@ def _run_agent(agent, prompt: str, original: str = "", require_mutation: bool = 
     way Cedar never decided on the real fix and nothing was audited, which defeats the point.
     Checking the message history is model-agnostic.
     """
-    reply = str(agent(prompt)).strip()
+    reply = _turn(agent, prompt)
     for attempt in range(1, MAX_RETRIES + 1):
         used = _tools_used(agent)
         if require_tool:
@@ -220,8 +222,19 @@ def _run_agent(agent, prompt: str, original: str = "", require_mutation: bool = 
             break
         log.warning("model did not act (tools used: %s); retry %d/%d", sorted(used), attempt, MAX_RETRIES)
         nudge = _runbook_nudge(require_tool, dimensions or {}) if require_tool else _retry_nudge(original or prompt)
-        reply = str(agent(nudge)).strip()
+        reply = _turn(agent, nudge)
     return reply
+
+
+def _turn(agent, text: str) -> str:
+    """One agent turn. Hitting max_tokens means the model rambled instead of acting (a real
+    tool call is ~30 tokens); Strands raises, and the partial text stays in the history. Treat
+    it like any other non-answer so the retry loop nudges instead of failing the request."""
+    try:
+        return str(agent(text)).strip()
+    except MaxTokensReachedException as exc:
+        log.warning("model hit max_tokens without finishing: %s", exc)
+        return "(the model stopped mid-answer without calling a tool)"
 
 
 def _get_agent(incident_id: str):

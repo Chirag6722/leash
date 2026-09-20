@@ -246,3 +246,32 @@ def test_audit_write_failure_is_reported_in_result(clients, allow, monkeypatch):
     assert out.startswith("ALLOWED")
     assert out.endswith(tools.AUDIT_FAILED)
     assert clients["ecs"].updated  # the action itself still ran
+
+
+# --- a rambling model that hits max_tokens is retried, not reported as an error --------------
+
+
+def test_max_tokens_on_first_turn_is_retried_with_a_nudge(monkeypatch):
+    from strands.types.exceptions import MaxTokensReachedException
+
+    prompts = []
+
+    class RamblingThenActingAgent:
+        system_prompt = ""
+
+        def __init__(self):
+            self.messages = []
+
+        def __call__(self, prompt):
+            prompts.append(prompt)
+            if len(prompts) == 1:
+                raise MaxTokensReachedException("Model stopped generating due to maximum token limit.")
+            self.messages.append({"role": "assistant", "content": [{"toolUse": {"name": "terminate_instance"}}]})
+            return "denied by ForbidDestructive"
+
+    monkeypatch.setattr(handler, "_AGENT", None)
+    monkeypatch.setattr(handler, "build_agent", lambda incident_id: RamblingThenActingAgent())
+    out = handler.handler({"mode": "chat", "message": "terminate i-0abc12345 now"}, None)
+    assert out["reply"] == "denied by ForbidDestructive"
+    assert len(prompts) == 2 and "did not call the action tool" in prompts[1]
+    assert "agent error" not in out["reply"]
