@@ -453,7 +453,7 @@ Five beats, each visible on the dashboard (`DashboardUrl` output):
 6. **Dashboard.** Green ALLOW rows and red DENY rows with the policy ids, the policies themselves
    beside them, and the **Alarm → fixed** tile showing the time the fix took.
 
-The timed shot list for the video is in [docs/DEMO-SCRIPT.md](docs/DEMO-SCRIPT.md).
+The video follows the beats above, in that order, on the live stack.
 
 ## Why not the obvious alternatives
 
