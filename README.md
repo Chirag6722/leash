@@ -1,6 +1,6 @@
 # Leash
 
-[![ci](https://github.com/Chirag6722/leash/actions/workflows/ci.yml/badge.svg)](https://github.com/Chirag6722/leash/actions/workflows/ci.yml)
+[![ci](https://github.com/thegoodengineers/leash/actions/workflows/ci.yml/badge.svg)](https://github.com/thegoodengineers/leash/actions/workflows/ci.yml)
 [![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 
 **An ops agent that can fix your AWS at 3 AM, but can never destroy anything — because Cedar says so.**

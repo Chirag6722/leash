@@ -1,7 +1,7 @@
 # We gave an AI agent our AWS keys. Cedar made sure it could not hurt us.
 
 *Built during First Commit (WeMakeDevs x AWS), 17–20 September 2026, by thegoodengineers.
-Live: https://zjebhhtr9h.execute-api.us-east-1.amazonaws.com/ · Code: https://github.com/Chirag6722/leash*
+Live: https://zjebhhtr9h.execute-api.us-east-1.amazonaws.com/ · Code: https://github.com/thegoodengineers/leash*
 
 ## The 3 AM problem
 
@@ -190,4 +190,4 @@ involved. One `sam deploy` brings everything up, one script tears it down.
 - No AWS account: `local_demo/` runs the same agent, tools and `.cedar` files against an in-memory
   AWS with a local Ollama model. Every decision in it is a real Cedar decision.
 
-Repository: https://github.com/Chirag6722/leash
+Repository: https://github.com/thegoodengineers/leash
