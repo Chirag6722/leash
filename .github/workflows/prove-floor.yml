@@ -32,13 +32,18 @@ jobs:
           restore-keys: prove-${{ runner.os }}-
 
       - name: Prove the shipped policies
-        run: scripts/prove-floor.sh cedar --json | tee floor-proof.json
+        run: |
+          set -o pipefail
+          bash scripts/prove-floor.sh cedar --json | tee floor-proof.json
+          grep -q '"holds": true' floor-proof.json
 
       - name: A loosened cap must be caught (the proof is not vacuous)
         run: |
           cp -r cedar /tmp/loosened
           sed -i 's/> 4/> 20/' /tmp/loosened/policies/ForbidScaleAboveCap.cedar
-          if scripts/prove-floor.sh /tmp/loosened; then echo "expected an escape"; exit 1; fi
+          set +e; bash scripts/prove-floor.sh /tmp/loosened; rc=$?; set -e
+          echo "prover exit code: $rc (1 = escape found, as it must be)"
+          test "$rc" -eq 1
 
       - uses: actions/upload-artifact@v4
         with:
