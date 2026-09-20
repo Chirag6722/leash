@@ -78,6 +78,35 @@ def _start_heartbeat(every_s: int = 20) -> None:
     threading.Thread(target=loop, name="heartbeat", daemon=True).start()
 
 
+def _start_floor_prover(every_s: int = 600) -> None:
+    """On a host that carries verify/ and cvc5 (the EC2 brain), prove the policy set in force for
+    every possible request, at start and every ten minutes, and publish the verdict so the
+    dashboard can show it. Silent where the prover is absent (a laptop without Rust)."""
+    import threading
+
+    from common import audit, authz, smtproof
+
+    if not smtproof.available():
+        print("[floor-proof] prover not available on this host; skipping", flush=True)
+        return
+    last_version = {"v": None}
+
+    def loop():
+        while True:
+            try:
+                files, version = authz._policy_files()
+                if version != last_version["v"]:
+                    report = smtproof.prove_files(files)
+                    audit.write_floor_proof(smtproof.flatten(report, prefix=""), version)
+                    last_version["v"] = version
+                    print(f"[floor-proof] {version[:40]}: {report}", flush=True)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[floor-proof] failed: {exc}", flush=True)
+            time.sleep(every_s)
+
+    threading.Thread(target=loop, name="floor-proof", daemon=True).start()
+
+
 def _busy(flag: bool) -> None:
     """Marker file while a message is being handled (LEASH_BUSY_FILE, default none): the EC2
     brain's update timer checks it so a code refresh never kills an answer mid-flight."""
@@ -154,6 +183,7 @@ def main(argv: list[str]) -> int:
           f"({outputs['AuthzFunctionName']}). Polling {len(queues)} queues. Ctrl+C to stop.", flush=True)
     idle_rounds = 0
     _start_heartbeat()
+    _start_floor_prover()
     while True:
         got = False
         for name, url, fn in queues:

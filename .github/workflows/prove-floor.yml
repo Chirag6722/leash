@@ -1,0 +1,46 @@
+name: prove-floor
+
+# The floor, proved for every possible request: Cedar's symbolic compiler turns the enforced
+# policies and cedar/floor.cedar into SMT and cvc5 decides whether any request the leash allows
+# escapes the floor. Runs on every change to a policy, the schema, the floor, or the prover.
+
+on:
+  push:
+    branches: [main]
+    paths: ["cedar/**", "verify/**", "scripts/prove-floor.sh", ".github/workflows/prove-floor.yml"]
+  pull_request:
+    paths: ["cedar/**", "verify/**", "scripts/prove-floor.sh", ".github/workflows/prove-floor.yml"]
+  workflow_dispatch:
+
+jobs:
+  prove:
+    name: floor holds for every request (SMT)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            verify/target
+            .build
+          key: prove-${{ runner.os }}-${{ hashFiles('verify/Cargo.toml', 'verify/src/**') }}
+          restore-keys: prove-${{ runner.os }}-
+
+      - name: Prove the shipped policies
+        run: scripts/prove-floor.sh cedar --json | tee floor-proof.json
+
+      - name: A loosened cap must be caught (the proof is not vacuous)
+        run: |
+          cp -r cedar /tmp/loosened
+          sed -i 's/> 4/> 20/' /tmp/loosened/policies/ForbidScaleAboveCap.cedar
+          if scripts/prove-floor.sh /tmp/loosened; then echo "expected an escape"; exit 1; fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: floor-proof
+          path: floor-proof.json

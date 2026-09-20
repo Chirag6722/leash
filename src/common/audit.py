@@ -114,6 +114,28 @@ def write_heartbeat(model: str, host: str, busy: bool = False) -> dict:
     return item
 
 
+FLOOR_PROOF_KEY = ("floor-proof", "latest")
+
+
+def write_floor_proof(attrs: dict, policy_version: str) -> dict:
+    """The latest SMT proof of the policy set in force (written by a brain host that carries the
+    prover); the API serves it under /policies -> floor.smt."""
+    item = {"pk": FLOOR_PROOF_KEY[0], "sk": FLOOR_PROOF_KEY[1], "gsi1pk": "FLOOR_PROOF", "at": timestamp(),
+            "policy_version": policy_version, **attrs}
+    _client().put_item(TableName=_table(), Item=_serialize(item))
+    return item
+
+
+def read_floor_proof() -> dict | None:
+    resp = _client().query(
+        TableName=_table(),
+        KeyConditionExpression="pk = :fp",
+        ExpressionAttributeValues={":fp": {"S": FLOOR_PROOF_KEY[0]}},
+    )
+    rows = [_deserialize(it) for it in resp.get("Items", [])]
+    return rows[0] if rows else None
+
+
 def read_heartbeats() -> list[dict]:
     """Every brain that has ever written a heartbeat, newest first; the caller judges freshness."""
     resp = _client().query(

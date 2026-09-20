@@ -591,7 +591,22 @@
         : "Requests the leash must refuse under every policy version. The operator token can move the policies above; only a code review and a deploy can move these. Re-proved on every proposal, every approval and every hot-reload.") + "</div>" +
       "<ul>" + f.invariants.map(function (r) {
         return '<li class="' + (r.holds ? "" : "bad") + '" title="' + esc(r.case) + '"><i>' + (r.holds ? "✓" : "✗") + "</i><span>" + esc(r.name) + ' <span class="c">' + esc(r.why) + "</span></span></li>";
-      }).join("") + "</ul>";
+      }).join("") + "</ul>" + smtLine(f.smt, f.policy_version);
+  }
+  // The stronger proof: not ten sampled requests but every request the schema admits, decided by
+  // Cedar's symbolic compiler and an SMT solver on the brain host, re-run whenever the store changes.
+  function smtLine(s, liveVersion) {
+    if (!s || s.error) return "";
+    var stale = liveVersion && s.policy_version && s.policy_version !== liveVersion;
+    var ok = s.holds === "true";
+    var age = s.at ? Math.max(0, Math.round((Date.now() - Date.parse(s.at)) / 60000)) : null;
+    return '<div class="why" style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">' +
+      '<b style="color:' + (ok ? "var(--allow)" : "var(--deny)") + '">' + (ok ? "Proved for every possible request" : "ESCAPE FOUND") + "</b> · " +
+      (ok ? "the enforced policies allow nothing outside the floor, over " + esc(s.environments) + " request environments"
+          : "the solver found a request the enforced policies allow and the floor forbids: <code>" + esc(s.counterexample || "") + "</code>") +
+      " · " + esc(s.solver || "cvc5") + " via Cedar's symbolic compiler, " + esc(s.ms || "?") + " ms" +
+      (age != null ? " · " + (age < 1 ? "just now" : age + " min ago") : "") +
+      (stale ? ' · <span style="color:var(--warn)">store changed since; re-proving</span>' : "") + "</div>";
   }
 
   function jumpToPolicy(name) {
@@ -1049,9 +1064,12 @@
       (valid ? '<div class="muted" style="margin-top:6px">Proof: ' + (changed.length ? changed.length + " request" + (changed.length === 1 ? "" : "s") + " would change" : "nothing would change - this rule is redundant") + "</div>" : "") +
       (proofRows ? '<ul class="proof">' + proofRows + "</ul>" : "") +
       (breaks.length ? '<div class="errs">Cannot be published, with or without the token: it would permit what the floor forbids.\n' + esc(breaks.join("\n")) + "</div>" : "") +
+      (p.smt_holds ? '<div class="muted" style="margin-top:6px">SMT: ' + (p.smt_holds === "true"
+          ? '<b style="color:var(--allow)">proved for every possible request</b> (' + esc(p.smt_environments) + " environments, " + esc(p.smt_solver || "cvc5") + ", " + esc(p.smt_ms) + " ms)"
+          : '<b style="color:var(--deny)">escape found</b>: <code>' + esc(p.smt_counterexample || "") + "</code>") + "</div>" : "") +
       (p.status === "approved"
         ? '<div class="muted">published to ' + esc(p.published_to || "the policy store") + "</div>"
-        : (valid && !breaks.length ? '<button class="approve" id="approve" data-id="' + esc(p.pk) + '">Approve and publish</button>' : ""));
+        : (valid && !breaks.length && p.smt_holds !== "false" ? '<button class="approve" id="approve" data-id="' + esc(p.pk) + '">Approve and publish</button>' : ""));
   }
 
   function findProposal(text, sinceIso) {
