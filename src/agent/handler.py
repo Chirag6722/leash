@@ -119,13 +119,10 @@ def build_chat_prompt(message: str) -> str:
     return (
         f"A human operator asks: {message}\n\n"
         f"{id_line}"
-        "Rules for answering:\n"
-        "  - Act ONLY by calling tools. Never write a tool call as text or JSON in your reply.\n"
-        "  - If the request names an EC2 instance (i-...), an ECS cluster/service, or an Auto "
-        "Scaling group, call the matching tool exactly once, even if you expect it to be denied - "
-        "the denial must be audited.\n"
-        "  - If a tool returns DENIED, report it verbatim with the policy ids and stop.\n"
-        "  - Finish with one short paragraph: what was asked, what you did or were denied, current state."
+        "Act ONLY by calling tools, never by writing a tool call as text or JSON. If the request "
+        "names an instance, ECS service or Auto Scaling group, call the matching tool exactly once "
+        "even if you expect a denial - it must be audited. Report any DENIED verbatim with the "
+        "policy ids. Finish with one short paragraph: what was asked, what happened, current state."
     )
 
 
