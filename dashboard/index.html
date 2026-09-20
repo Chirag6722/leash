@@ -83,6 +83,9 @@
 
   /* the audit trail */
   .scroll { overflow-x: auto; margin: 0 -8px; padding: 0 8px; }
+  /* long lists scroll inside their panel: 188 audit rows must not push the ask box 8,000 px down */
+  .scroll.tall { max-height: 640px; overflow-y: auto; overscroll-behavior: contain; }
+  .scroll.mid { max-height: 520px; overflow-y: auto; overscroll-behavior: contain; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { font-weight: 500; white-space: nowrap; }
@@ -102,8 +105,8 @@
   .empty { color: var(--muted); padding: 28px 10px; text-align: center; font-size: 13.5px; }
 
   /* incident timeline */
-  .timeline { min-width: 560px; }
-  .tl-row { display: grid; grid-template-columns: 230px 1fr 84px; gap: 14px; align-items: center; padding: 9px 10px; border-radius: var(--r-sm); cursor: pointer; border: 1px solid transparent; transition: background .15s, border-color .15s; }
+  .timeline { min-width: 440px; }
+  .tl-row { display: grid; grid-template-columns: minmax(150px, 210px) 1fr 76px; gap: 12px; align-items: center; padding: 9px 10px; border-radius: var(--r-sm); cursor: pointer; border: 1px solid transparent; transition: background .15s, border-color .15s; }
   .tl-row:hover { background: var(--panel-2); }
   .tl-row.selected { border-color: var(--accent); background: var(--accent-wash); }
   .tl-row .name { font-family: var(--mono); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -313,7 +316,7 @@
   </section>
   <section>
     <h2>Incidents <small>one row each · click to filter the trail</small></h2>
-    <div class="scroll"><div class="timeline" id="timeline"><div class="empty">No incidents yet.</div></div></div>
+    <div class="scroll mid"><div class="timeline" id="timeline"><div class="empty">No incidents yet.</div></div></div>
     <p class="tl-hint"><span><i class="dot allow"></i>allowed</span><span><i class="dot deny"></i>denied</span><span>bar: incident start → last decision</span><a href="#" id="tl-clear" hidden>show all incidents</a></p>
   </section>
   <section>
@@ -321,15 +324,6 @@
     <div id="policies"><div class="empty">Loading policies…</div></div>
     <p class="note">Cedar is deny-by-default and any <b>forbid</b> beats every <b>permit</b>. Click a policy id in the audit trail to jump to the rule that decided it.</p>
     <div class="floor" id="floor" hidden></div>
-  </section>
-  <section class="wide">
-    <h2>Audit trail <small id="trail-sub">newest first · refreshes every 10 s</small></h2>
-    <div class="scroll">
-    <table>
-      <thead><tr><th>Time (UTC)</th><th>Action</th><th>Resource</th><th>Env</th><th>Decision</th><th>Policies</th><th>Result</th></tr></thead>
-      <tbody id="rows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
-    </table>
-    </div>
   </section>
   <section>
     <h2>Propose a rule <small>English in, Cedar out, proven before it is published</small></h2>
@@ -354,6 +348,15 @@
       acts. The reply itself takes as long as the model does: seconds on Bedrock, a few minutes on a
       laptop CPU model.</p>
     <div id="reply">The agent will diagnose, act only through policy-checked tools, and report what was allowed or denied.</div>
+  </section>
+  <section class="wide">
+    <h2>Audit trail <small id="trail-sub">newest first · refreshes every 10 s</small></h2>
+    <div class="scroll tall">
+    <table>
+      <thead><tr><th>Time (UTC)</th><th>Action</th><th>Resource</th><th>Env</th><th>Decision</th><th>Policies</th><th>Result</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+    </table>
+    </div>
   </section>
 </main>
 <footer>
