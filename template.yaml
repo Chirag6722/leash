@@ -445,7 +445,7 @@ Resources:
           systemctl enable --now ollama
           for i in $(seq 1 30); do curl -s http://localhost:11434/api/tags >/dev/null && break; sleep 2; done
           ollama pull ${BrainModel}
-          git clone https://github.com/Chirag6722/leash /opt/leash
+          git clone https://github.com/thegoodengineers/leash /opt/leash
           cd /opt/leash
           python3.11 -m pip install --quiet -r requirements-dev.txt ollama
           cat > /etc/systemd/system/leash-worker.service <<'UNIT'

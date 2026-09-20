@@ -8,7 +8,7 @@ schedule page and the form closes hard.
 
 | Rule | Where it is | Done |
 | --- | --- | --- |
-| Public repository | https://github.com/Chirag6722/leash (public, MIT) | ☐ still public on submission day |
+| Public repository | https://github.com/thegoodengineers/leash (public, MIT) | ☐ still public on submission day |
 | Demo video, YouTube, **under three minutes**, public or unlisted | link goes in the form; shot list in [DEMO-SCRIPT.md](DEMO-SCRIPT.md) | ☐ uploaded ☐ opens in a signed-out / private window ☐ < 3:00 |
 | Short writeup: problem, build, where AWS fits | [WRITEUP.md](WRITEUP.md) (paste into the form) | ☐ pasted |
 | One submission per team | one form, submitted once | ☐ |
