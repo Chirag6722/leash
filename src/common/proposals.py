@@ -176,6 +176,45 @@ def validate(statement: str, schema: dict) -> Validation:
 _decide = authz.evaluate_text
 
 
+HISTORY_LIMIT = 200
+
+
+def replay_history(before_text: str, after_text: str, schema: dict, limit: int = HISTORY_LIMIT) -> dict:
+    """The candidate against the record: every real decision in the audit trail, re-decided
+    under the current policies and under the candidate set. A rule that would have flipped the
+    seven disk fixes is a rule that would have left seven disks full; the card says so.
+
+    scaleGroup rows carry their desiredCapacity only in the result text of a denial, so a
+    scale row without it is skipped and counted, never guessed."""
+    try:
+        rows = audit._list_partition(audit.GSI_PK, limit)
+    except Exception as exc:  # noqa: BLE001 - no table (local drafting) is not an error
+        return {"rows": 0, "skipped": 0, "flipped": 0, "flips": [], "note": f"no history: {exc}"[:200]}
+    seen, skipped, flips = 0, 0, []
+    for r in rows:
+        action, rtype, rid, env = r.get("action", ""), r.get("resource_type", ""), r.get("resource_id", ""), r.get("resource_env", "unknown")
+        if action not in ACTIONS or rtype not in authz.RESOURCE_TYPES:
+            skipped += 1
+            continue
+        ctx = {}
+        if action == "scaleGroup":
+            m = re.search(r"desired=(\d+)", str(r.get("result", "")))
+            if not m:
+                skipped += 1
+                continue
+            ctx = {"desiredCapacity": int(m.group(1))}
+        seen += 1
+        try:
+            b_ok, _ = _decide(before_text, schema, action, rtype, rid, env, ctx)
+            a_ok, _ = _decide(after_text, schema, action, rtype, rid, env, ctx)
+        except Exception:  # noqa: BLE001 - an odd historical row must not break the proof
+            skipped += 1
+            continue
+        if b_ok != a_ok:
+            flips.append(f"{r.get('pk', '?')} · {action} on {rid} (env={env}): {'ALLOW' if b_ok else 'DENY'} -> {'ALLOW' if a_ok else 'DENY'}")
+    return {"rows": seen, "skipped": skipped, "flipped": len(flips), "flips": flips[:12]}
+
+
 def prove(name: str, statement: str, files: dict) -> dict:
     """Every proof case before and after the candidate; `changed` lists the flips and `breaks`
     the floor invariants the resulting policy set would violate (an approval refuses those)."""
@@ -189,6 +228,7 @@ def prove(name: str, statement: str, files: dict) -> dict:
     # Where the host carries the prover (the EC2 brain does), the same candidate set is also
     # proved for EVERY request by the symbolic compiler and cvc5; None where it cannot run.
     smt = smtproof.prove_files({**after, "schema": files["schema"]})
+    history = replay_history(before_text, after_text, schema)
     rows, changed = [], []
     for label, action, rtype, rid, env, ctx in PROOF_CASES:
         b_ok, b_ids = _decide(before_text, schema, action, rtype, rid, env, ctx)
@@ -198,7 +238,8 @@ def prove(name: str, statement: str, files: dict) -> dict:
         rows.append(row)
         if b_ok != a_ok:
             changed.append(f"{label}: {row['before']} -> {row['after']}")
-    return {"cases": rows, "changed": changed, "replaces": name in current, "breaks": breaks, "smt": smt}
+    return {"cases": rows, "changed": changed, "replaces": name in current, "breaks": breaks, "smt": smt,
+            "history": history}
 
 
 # --- the two entry points --------------------------------------------------------------------
@@ -238,7 +279,7 @@ def propose(text: str, drafter=None) -> dict:
         draft = Draft("Proposed", "", "none", "no template fits this sentence and no model was available")
 
     validation = validate(draft.statement, schema) if draft.statement else Validation(False, ["empty draft"])
-    proof = prove(draft.name, draft.statement, files) if validation.ok else {"cases": [], "changed": [], "replaces": False, "breaks": [], "smt": None}
+    proof = prove(draft.name, draft.statement, files) if validation.ok else {"cases": [], "changed": [], "replaces": False, "breaks": [], "smt": None, "history": None}
 
     pk = "proposal-" + audit.timestamp().replace("-", "").replace(":", "").replace(".", "")[:21]
     row = audit.write_generic(pk, PARTITION, {
@@ -247,6 +288,9 @@ def propose(text: str, drafter=None) -> dict:
         "changed": proof["changed"], "replaces": "true" if proof["replaces"] else "false", "breaks": proof["breaks"],
         "cases": json.dumps(proof["cases"]), "status": "proposed", "policy_version_at_draft": version,
         **smtproof.flatten(proof.get("smt")),
+        **({"history_rows": str(proof["history"]["rows"]), "history_skipped": str(proof["history"]["skipped"]),
+            "history_flipped": str(proof["history"]["flipped"]), "history_flips": proof["history"]["flips"]}
+           if proof.get("history") else {}),
     })
     row["cases"] = proof["cases"]
     return row
