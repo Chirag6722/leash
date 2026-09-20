@@ -49,7 +49,10 @@ def build_model():
         model = OllamaModel(
             host=os.environ.get("OLLAMA_HOST", "http://localhost:11434"),
             model_id=os.environ.get("OLLAMA_MODEL_ID", DEFAULT_LOCAL_MODEL_ID),
-            max_tokens=2048,
+            # A tool call is ~30 tokens and the closing summary under 100. Small models sometimes
+            # fall into a repeating ramble; at ~4 tok/s on a CPU brain 2048 tokens is ten minutes
+            # of nothing, so cut it off early and let the handler's retry nudge take over.
+            max_tokens=int(os.environ.get("OLLAMA_MAX_TOKENS", "320")),
             temperature=0.0,  # greedy decoding: same input -> same tool calls, so the demo is repeatable
             # llama.cpp defaults to one thread per physical core; on a 2-vCPU EC2 brain that is a
             # single thread, and using both was measured at +18% generation, +20% prompt eval.
