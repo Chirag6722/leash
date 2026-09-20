@@ -1,6 +1,6 @@
 # Leash
 
-[![ci](https://github.com/thegoodengineers/leash/actions/workflows/ci.yml/badge.svg)](https://github.com/thegoodengineers/leash/actions/workflows/ci.yml)
+[![ci](https://github.com/thegoodengineers/leash/actions/workflows/ci.yml/badge.svg)](https://github.com/thegoodengineers/leash/actions/workflows/ci.yml) [![prove-floor](https://github.com/thegoodengineers/leash/actions/workflows/prove-floor.yml/badge.svg)](https://github.com/thegoodengineers/leash/actions/workflows/prove-floor.yml)
 [![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 
 **An ops agent that can fix your AWS at 3 AM, but can never destroy anything — because Cedar says so.**
@@ -32,8 +32,9 @@ Track: **Ship It**.
   drafts, and on the live policy set every time it changes. Not a sample of requests: all of them.
   Loosen the cap to 20 and the solver hands back the exact request that escapes
   (`scaleGroup, desiredCapacity: 17`) in under a second.
-- **Twelve AWS services + two AWS open-source projects** (Strands Agents, Cedar); 167 tests with real
-  Cedar evaluation; CI on every push.
+- **Twelve AWS services + two AWS open-source projects** (Strands Agents, Cedar); 177 tests with real
+  Cedar evaluation, including one that reads the tools' own source and fails if any mutating tool
+  could reach AWS without asking the leash first; CI on every push, plus the SMT proof of the floor.
 
 ## The problem
 
@@ -409,9 +410,12 @@ cannot create. The page talks only to the HTTP API:
   one.
 - **Ask the agent**: a chat box wired to `POST /ask` for the denial beats.
 - **Propose a rule**: English in, Cedar out. The draft is validated against the schema, proved
-  against a fixed set of requests (every answer that would flip is listed) and against the floor
-  (a draft that would break an invariant cannot be approved at all), and published to the
-  versioned policy bucket only when a person clicks Approve.
+  against a fixed set of requests (every answer that would flip is listed), against the floor
+  (a draft that would break an invariant cannot be approved at all), against every possible
+  request by the SMT solver on the brain host, and against the record: the last 200 real
+  decisions in the audit trail are re-decided under the candidate, so the card can say "this rule
+  would have left seven disks full". Published to the versioned policy bucket only when a person
+  clicks Approve.
 
 Two actions change what the system does, publishing a policy and launching a red-team run, and
 those need the stack's `OperatorToken` (the dashboard asks once and keeps it in the browser).
