@@ -123,7 +123,7 @@ scripts/                 deploy, break-disk, kill-task, inject-tag, stop-prod, a
 .github/workflows/ci.yml pytest + cfn-lint + sam validate on every push and pull request
 tests/authz/             real Cedar evaluation of the four policies (cedarpy), file/template byte-identity
 tests/agent, tests/api   tool and handler tests with fake boto3 clients; no AWS calls
-docs/                    this file, WRITEUP.md, DEMO-SCRIPT.md
+docs/                    this file, WRITEUP.md, BLOG.md, SUBMISSION-CHECKLIST.md
 ```
 
 ### Known deviation: `template.yaml` is ~610 lines

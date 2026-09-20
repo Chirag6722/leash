@@ -9,7 +9,7 @@ schedule page and the form closes hard.
 | Rule | Where it is | Done |
 | --- | --- | --- |
 | Public repository | https://github.com/thegoodengineers/leash (public, MIT) | ☐ still public on submission day |
-| Demo video, YouTube, **under three minutes**, public or unlisted | link goes in the form; shot list in [DEMO-SCRIPT.md](DEMO-SCRIPT.md) | ☐ uploaded ☐ opens in a signed-out / private window ☐ < 3:00 |
+| Demo video, YouTube, **under three minutes**, public or unlisted | link goes in the form; the shot list is kept with the team, not in the repo | ☐ uploaded ☐ opens in a signed-out / private window ☐ < 3:00 |
 | Short writeup: problem, build, where AWS fits | [WRITEUP.md](WRITEUP.md) (paste into the form) | ☐ pasted |
 | One submission per team | one form, submitted once | ☐ |
 
@@ -31,7 +31,7 @@ schedule page and the form closes hard.
 | Built on AWS (mandatory) | 12 services in the README table; Strands + Cedar are AWS open-source projects |
 | Learning: "tell us what you learned, and it counts" | WRITEUP "What we learned" (six concrete lessons) |
 | Execution: does it work | 121 passing tests with real Cedar evaluation; CI on every push; live URL in the form; all five demo beats and a 20-attack red-team run verified on the deployed stack |
-| Demo video: what it does, who it is for, where AWS fits | DEMO-SCRIPT.md beats 1–5, AWS console shots included on purpose |
+| Demo video: what it does, who it is for, where AWS fits | the video's beats: the fake-support denial, the red team, English rules with the SMT proof, the CloudFormation resources shot |
 
 ## Ship It track specifics
 
