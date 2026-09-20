@@ -13,6 +13,7 @@ Track: **Ship It**.
 
 - **Live:** https://zjebhhtr9h.execute-api.us-east-1.amazonaws.com/ (anyone can read the trail, ask the
   agent and propose a rule; publishing a policy or launching attacks needs the operator token).
+- **Blog:** https://builder.aws.com/content/3Jafwz9KHxX3lRvYtpDlgUByS7a/we-gave-an-ai-agent-our-aws-keys-cedar-made-sure-it-could-not-hurt-us (the story, on AWS Builder Center).
 - **What it is:** an on-call agent that fixes AWS incidents by itself, where every action must first
   pass four Cedar policies evaluated by a leash that lives in AWS and that the model cannot see.
 - **Measured on the deployed stack:** a full dev disk fixed in 5 min 48 s with nobody awake; 20
