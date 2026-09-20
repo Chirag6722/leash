@@ -307,6 +307,20 @@ Resources:
             Effect: Allow
             Action: cloudformation:DescribeStacks
             Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*"
+          - !If
+            - UseS3Policies
+            - Sid: ReadPolicyStore
+              Effect: Allow
+              Action: [s3:GetObject, s3:GetObjectVersion]
+              Resource: !Sub "${PolicyBucket.Arn}/cedar/*"
+            - !Ref AWS::NoValue
+          - !If
+            - UseS3Policies
+            - Sid: ListPolicyStore
+              Effect: Allow
+              Action: s3:ListBucket
+              Resource: !GetAtt PolicyBucket.Arn
+            - !Ref AWS::NoValue
           - Sid: ConsumeQueues
             Effect: Allow
             Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes, sqs:GetQueueUrl]

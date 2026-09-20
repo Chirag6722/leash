@@ -44,6 +44,8 @@ def configure(outputs: dict) -> None:
     os.environ.setdefault("OLLAMA_MODEL_ID", "qwen3:8b")
     os.environ["AWS_REGION"] = REGION
     os.environ["LEASH_AUTHZ_FUNCTION"] = outputs["AuthzFunctionName"]
+    if outputs.get("PolicyBucket"):  # proposals and the floor prover read the set in force, not the repo copy
+        os.environ["LEASH_CEDAR_S3_BUCKET"] = outputs["PolicyBucket"]
     os.environ["AUDIT_TABLE"] = outputs["AuditTableName"]
     os.environ["ALERT_TOPIC_ARN"] = outputs.get("AlertTopicArn", "")
     os.environ["DEV_INSTANCE_ID"] = outputs.get("DevInstanceId", "")
