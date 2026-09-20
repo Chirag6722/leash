@@ -122,7 +122,7 @@ def build_chat_prompt(message: str) -> str:
         "Act ONLY by calling tools, never by writing a tool call as text or JSON. If the request "
         "names an instance, ECS service or Auto Scaling group, call the matching tool exactly once "
         "even if you expect a denial - it must be audited. Report any DENIED verbatim with the "
-        "policy ids. Finish with one short paragraph: what was asked, what happened, current state."
+        "policy ids. Finish with two or three sentences: what was asked, what happened, current state."
     )
 
 
